@@ -36,12 +36,19 @@ export type Deal = {
   quarter_label: string | null;
 };
 
+export const ROLES = [
+  { value: "commercial", label: "Commercial", help: "voit les affaires de son pays et modifie les siennes" },
+  { value: "manager", label: "Manager", help: "modifie toutes les affaires de son pays et ses objectifs" },
+  { value: "direction", label: "Direction", help: "voit tous les pays, sans modifier" },
+  { value: "admin", label: "Administrateur", help: "peut tout faire, y compris gérer les utilisateurs" },
+] as const;
+
 export type Profile = {
   id: string;
   email: string;
   full_name: string;
   country_code: string | null;
-  role: "commercial" | "manager" | "direction" | "admin";
+  role: (typeof ROLES)[number]["value"];
 };
 
 const money = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
