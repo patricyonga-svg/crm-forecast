@@ -1,0 +1,36 @@
+bn,Pipe Line,100 000 000 XOF,Facturé,10 000 000 XOF
+,Forecast,50 000 000 XOF,Encaissé,5 000 000 XOF
+,Poids Forecast,50%,Tx de Conv FC / Closing,20%
+,,,,
+,,,,
+,Nom client,Pays,Nombre de Bénéficiaire,Montant Devis,Mois de Closing,Sales Stage (Opportunity / Forecast),Montant Forecast,Montant Facturé,Montant encaissé,Type,Porteur (Commercial),Commentaire,,,,,,,,,Trimestre
+,Société Alpha,Senegal,18,3 700 000 XOF,T3,Opportunité,0 XOF,0 XOF,0 XOF,B2B2C,Commercial A,Offre envoyée en attente de leur retour,,,,,,,,,#VALUE!
+,Client Particulier 1,Senegal,1,600 000 XOF,juin-26,Won,600 000 XOF,600 000 XOF,600 000 XOF,B2B2C,Commercial A ,Offre envoyée et validée,,,,,,,,,T2
+,Association Bêta,Senegal,500-1000,,T3,Opportunité,0 XOF,0 XOF,0 XOF,B2B2C,Commercial A,"Présentation faite au vice-président",,,,,,,,,#VALUE!
+,Gamma Factory,Senegal,,1 100 000 XOF,T4,Won Pending,1 100 000 XOF,1 100 000 XOF,0 XOF,B2B & PF,Commercial B,"MSO 18/08 : attend le go définitif
+CDI_20/08 : En congé, rappeler la semaine prochaine
+CDI_04/09 : Toujours en congé
+MSO 15/10 : Rdv vendredi 16/10 à 11h ",,,,,,,,,#VALUE!
+,DELTA%§,Senegal,,1 130 000 XOF,T1FY27,Opportunité,0 XOF,0 XOF,0 XOF,B2B & PF,Commercial C,"MSO 18/08 : mise en place en septembre ?
+CDI_20/08 : Pas encore d'accord de principe, le devis a juste été soumis
+les autres assurés peinent à rassembler les informations",,,,,,,,,#VALUE!
+,Client Particulier 2,Senegal,,560 000 XOF,,Opportunité,0 XOF,0 XOF,0 XOF,B2B & PF,,,,,,,,,,,T4
+,Famille Exemple ,Senegal,22,3 500 000 XOF,T3,Opportunité,0 XOF,0 XOF,0 XOF,B2B2C,Commercial A,,,,,,,,,,
+,Famille Exemple ,Senegal,22,3 500 000 XOF,T3,Opportunité,0 XOF,0 XOF,0 XOF,B2B2C,Commercial A,,,,,,,,,,
+,Famille Test,Senegal,2,340 000 XOF,juin-1,Won,340 000 XOF,340 000 XOF,340 000 XOF,B2B2C,Commercial A,,,,,,,,,,
+,ECOLE EPSILON,Senegal,113,17 800 000 XOF,T4 ,Forecast,17 800 000 XOF,0 XOF,0 XOF,B2B & PF,COMMERCIAL D,,,,,,,,,,
+,Zêta SARL,Senegal,,5 250 000 XOF,T4,Forecast,5 250 000 XOF,0 XOF,0 XOF,B2B & PF,Commercial D,"MSO 18/08 : voir si toujours d'actualité ?
+PYO_20/08 : Contact injoignable.
+CDI : le devis mis à jour a été transmis",,,,,,,,,#VALUE!
+,ETA ,Senegal,7,,,Opportunité,0 XOF,0 XOF,0 XOF,,COMMERCIAL D,,,,,,,,,,
+,Client Particulier 3,Côte d'Ivoire,1,620 000 XOF,05/08/2026,Won Pending,620 000 XOF,620 000 XOF,300 000 XOF,B2B Procare,Commercial É,,,,,,,,,,
+,Thêta SARL,Côte d'Ivoire,5,2 000 000 XOF,09/09/2026,Won Pending,2 000 000 XOF,2 000 000 XOF,700 000 XOF,B2B Mid Market,Commercial Fe,,,,,,,,,,
+,Iota Group,Côte d'Ivoire,22,5 200 000 XOF,T4,Forecast,5 200 000 XOF,0 XOF,0 XOF,B2B Mid Market,Commercial Fé,,,,,,,,,,
+,KAPPA CONSEIL,Côte d'Ivoire,3,700 000 XOF,T3,Won,700 000 XOF,700 000 XOF,700 000 XOF,B2B Mid Market,Commercial G,,,,,,,,,,
+,KAPPA CONSEIL,Côte d'Ivoire,3,2 500 000 XOF,T4,Forecast,2 500 000 XOF,0 XOF,0 XOF,B2B Mid Market,Commercial G,,,,,,,,,,
+,Lambda Sarl,Côte d'Ivoire,8,1 900 000 XOF,T1_2027,Opportunité,0 XOF,0 XOF,0 XOF,B2B Mid Market,Commercial H,,,,,,,,,,
+,Client Particulier 4,Cameroun,1,150 000 XOF,Aout 2026,Won,150 000 XOF,150 000 XOF,150 000 XOF,Pack Famille,Commercial I,,,,,,,,,,
+,MU SA,Cameroun,165,25 000 000 XOF,Mar-27,Opportunité,0 XOF,0 XOF,0 XOF,B2B Mid Market,Commercial J,,,,,,,,,,
+,NU,Cameroun,500,148 000 000 XOF,T4,Opportunité,0 XOF,0 XOF,0 XOF,B2B Grand Compte,,,,,,,,,,,
+,,,,,,,,0 XOF,0 XOF
+,Total,,,100 000 000 XOF,,,50 000 000 XOF,10 000 000 XOF,5 000 000 XOF
