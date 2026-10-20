@@ -21,6 +21,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <Link href="/tableau-de-bord" className="hover:underline">
               Tableau de bord
             </Link>
+            {profile?.role === "admin" && (
+              <Link href="/utilisateurs" className="hover:underline">
+                Utilisateurs
+              </Link>
+            )}
           </nav>
           <div className="ml-auto flex items-center gap-3 text-sm text-zinc-600">
             <span>{profile?.full_name ?? user.email}</span>
