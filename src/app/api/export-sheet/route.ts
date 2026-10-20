@@ -38,6 +38,10 @@ export async function GET(request: Request) {
     .order("country_code")
     .returns<Row[]>();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // Zéro affaire = presque toujours une mauvaise clé (anon au lieu de service_role) : on ne vide pas l'onglet.
+  if (!data?.length) {
+    return NextResponse.json({ error: "aucune affaire lue : vérifier SUPABASE_SERVICE_ROLE_KEY" }, { status: 500 });
+  }
 
   const rows: (string | number)[][] = [
     [`Copie automatique du CRM, ne pas modifier. Mise à jour : ${new Date().toLocaleString("fr-FR", { timeZone: "Africa/Dakar" })}`],
@@ -58,7 +62,7 @@ export async function GET(request: Request) {
       "Trimestre",
       "Dernière modification",
     ],
-    ...(data ?? []).map((d) => [
+    ...data.map((d) => [
       d.clients.name,
       d.countries.name,
       d.beneficiaries ?? "",
