@@ -180,7 +180,7 @@ export default async function SummaryPage({ searchParams }: { searchParams: Prom
 
       <p className="text-xs text-zinc-500">
         Montants en millions de XOF. Réalisé = Won Pending + Won datés de la période · Forecast = réalisé + affaires au stade Forecast · Pipe = toutes
-        les affaires du trimestre · les affaires ouvertes du trimestre précédent comptent comme en retard.
+        les affaires non perdues du trimestre · les affaires ouvertes du trimestre précédent comptent comme en retard.
       </p>
     </div>
   );

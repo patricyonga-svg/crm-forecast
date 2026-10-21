@@ -18,6 +18,7 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
     (d) => (!params.pays || d.country_code === params.pays) && (!params.porteur || String(d.sales_rep_id ?? "aucun") === params.porteur),
   );
   const levels = funnel(scoped);
+  const lost = scoped.filter((d) => d.stage === "perdu");
   const top = levels[0].amount || 1;
   const byCountry = refs.countries
     .filter((c) => !params.pays || c.code === params.pays)
@@ -135,7 +136,9 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
 
       <p className="text-xs text-zinc-500">
         Entonnoir cumulé sur les affaires dont la date de closing tombe dans la période : chaque niveau compte les affaires arrivées au moins à cette
-        étape (le niveau Opportunité contient donc tout le pipe). Montants des devis en millions de XOF.
+        étape (le niveau Opportunité contient donc tout le pipe). Les affaires perdues sont exclues
+        {lost.length > 0 && ` (${lost.length} sur la période, ${formatM(lost.reduce((s, d) => s + Number(d.quote_amount), 0))} XOF)`}. Montants des devis en
+        millions de XOF.
         {undated > 0 && ` ${undated} affaires sans date de closing ne sont pas comptées.`}
       </p>
     </div>

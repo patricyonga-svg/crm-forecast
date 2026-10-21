@@ -34,7 +34,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
     const { from, to } = quarterRange(params.trimestre);
     query = query.gte("expected_close_date", from).lte("expected_close_date", to);
   }
-  if (params.vue === "relances") query = query.lte("next_action_date", today).neq("stage", "won");
+  if (params.vue === "relances") query = query.lte("next_action_date", today).not("stage", "in", "(won,perdu)");
   if (params.vue === "miennes") {
     const mine = refs.reps.filter((r) => r.profile_id === user.id).map((r) => r.id);
     query = query.in("sales_rep_id", mine.length ? mine : [-1]);
@@ -58,7 +58,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold">{params.vue === "relances" ? "Affaires à relancer" : "Affaires"}</h1>
+        <h1 className="text-xl font-semibold">{params.vue === "relances" ? "Actions à faire" : "Affaires"}</h1>
         <div className="flex gap-2">
           <Link href={params.vue === "miennes" ? "/affaires" : "/affaires?vue=miennes"} className="btn-secondary">
             {params.vue === "miennes" ? "Toutes les affaires" : "Mes affaires"}
