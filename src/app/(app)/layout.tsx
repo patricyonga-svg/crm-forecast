@@ -7,12 +7,12 @@ import { signOut } from "./actions";
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { profile, user } = await getSession();
   return (
-    <div className="min-h-screen">
+    <div className="flex min-h-screen flex-col">
       <header className="bg-brand-header text-white">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-          <Link href="/affaires" className="flex items-center gap-2.5">
-            <Image src="/susu-logo.png" alt="SUSU" width={74} height={24} priority />
-            <span className="border-l border-white/20 pl-2.5 text-lg font-extrabold tracking-tight">Cerise</span>
+        <div className="flex flex-wrap items-center gap-x-8 gap-y-2 py-2.5 pl-3 pr-4">
+          <Link href="/affaires" className="flex items-center gap-1.5">
+            <Image src="/cerise.png" alt="" width={34} height={34} priority />
+            <span className="font-brand text-2xl font-semibold tracking-wide">Cerise</span>
           </Link>
           <nav className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-white/80">
             <Link href="/affaires" className="hover:text-white">
@@ -50,7 +50,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           Votre compte n&apos;est pas encore rattaché à un pays. Un administrateur doit le compléter pour que vous voyiez vos affaires.
         </div>
       )}
-      <main className="mx-auto max-w-7xl px-4 py-6">{children}</main>
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
+      <footer className="flex justify-end px-4 pb-4">
+        <Image src="/susu-logo.png" alt="SUSU" width={74} height={24} />
+      </footer>
     </div>
   );
 }
