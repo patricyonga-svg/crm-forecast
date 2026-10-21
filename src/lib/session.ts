@@ -18,7 +18,7 @@ export async function getReferences(supabase: Awaited<ReturnType<typeof createCl
   const [countries, lines, reps] = await Promise.all([
     supabase.from("countries").select("code, name, currency").order("name"),
     supabase.from("business_lines").select("id, name").eq("active", true).order("name"),
-    supabase.from("sales_reps").select("id, display_name, country_code, profile_id").order("display_name"),
+    supabase.from("sales_reps").select("id, display_name, country_code, profile_id, active").order("display_name"),
   ]);
   return {
     countries: countries.data ?? [],

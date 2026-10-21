@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { getSession } from "@/lib/session";
 import { signOut } from "./actions";
@@ -6,31 +7,43 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { profile, user } = await getSession();
   return (
     <div className="min-h-screen">
-      <header className="border-b border-zinc-200 bg-white">
+      <header className="bg-brand-navy text-white">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
-          <Link href="/affaires" className="font-semibold">
-            CRM Forecast
+          <Link href="/affaires" className="flex items-center gap-2.5">
+            <Image src="/susu-logo.png" alt="SUSU" width={74} height={24} priority />
+            <span className="border-l border-white/20 pl-2.5 text-lg font-extrabold tracking-tight">Cerise</span>
           </Link>
-          <nav className="flex gap-4 text-sm">
-            <Link href="/affaires" className="hover:underline">
+          <nav className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-white/80">
+            <Link href="/affaires" className="hover:text-white">
               Affaires
             </Link>
-            <Link href="/affaires?vue=relances" className="hover:underline">
+            <Link href="/affaires?vue=relances" className="hover:text-white">
               À relancer
             </Link>
-            <Link href="/tableau-de-bord" className="hover:underline">
+            <Link href="/tableau-de-bord" className="hover:text-white">
               Tableau de bord
             </Link>
+            <Link href="/rapports" className="hover:text-white">
+              Rapports
+            </Link>
+            {(profile?.role === "admin" || profile?.role === "manager") && (
+              <Link href="/parametres/objectifs" className="hover:text-white">
+                Objectifs
+              </Link>
+            )}
+            <Link href="/parametres/pipeline" className="hover:text-white">
+              Paramètres pipeline
+            </Link>
             {profile?.role === "admin" && (
-              <Link href="/utilisateurs" className="hover:underline">
+              <Link href="/utilisateurs" className="hover:text-white">
                 Utilisateurs
               </Link>
             )}
           </nav>
-          <div className="ml-auto flex items-center gap-3 text-sm text-zinc-600">
+          <div className="ml-auto flex items-center gap-3 text-sm text-white/70">
             <span>{profile?.full_name ?? user.email}</span>
             <form action={signOut}>
-              <button className="hover:underline">Déconnexion</button>
+              <button className="hover:text-white">Déconnexion</button>
             </form>
           </div>
         </div>
