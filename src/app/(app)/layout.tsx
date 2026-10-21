@@ -8,7 +8,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const { profile, user } = await getSession();
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="bg-brand-header text-white">
+      <header className="bg-brand-navy text-white">
         <div className="flex flex-wrap items-center gap-x-8 gap-y-2 py-2.5 pl-3 pr-4">
           <Link href="/affaires" className="flex items-center gap-1.5">
             <Image src="/cerise.png" alt="" width={34} height={34} priority />
