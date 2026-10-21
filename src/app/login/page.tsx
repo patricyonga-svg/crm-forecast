@@ -21,7 +21,7 @@ export default function LoginPage() {
       <section className="flex items-center justify-center bg-[#1c2d52] px-6 py-12">
         <div className="w-full max-w-sm space-y-4 text-white">
           <p className="text-sm text-[#a9c4e6]">Connectez-vous avec votre compte Google professionnel.</p>
-          <button className="btn w-full bg-white text-brand-navy hover:bg-zinc-100" onClick={signIn}>
+          <button className="btn w-full !bg-white !text-brand-navy hover:!bg-zinc-100" onClick={signIn}>
             Se connecter avec Google
           </button>
         </div>

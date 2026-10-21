@@ -37,7 +37,7 @@ export function ObjectivesGrid({ reps, months, initial }: Props) {
             <input
               value={phasing[i]}
               onChange={(e) => setPhasing((p) => p.map((x, j) => (j === i ? e.target.value : x)))}
-              className="input w-16 text-right"
+              className="input max-w-16 text-right"
               inputMode="decimal"
             />
             %
@@ -50,9 +50,9 @@ export function ObjectivesGrid({ reps, months, initial }: Props) {
           <thead className="text-left text-xs text-zinc-500">
             <tr>
               <th className="py-1 pr-3 font-medium">Commercial</th>
-              <th className="py-1 pr-3 text-right font-medium">Trimestre</th>
+              <th className="py-1 pr-3 font-medium">Trimestre</th>
               {months.map((m) => (
-                <th key={m.value} className="py-1 pr-3 text-right font-medium capitalize">
+                <th key={m.value} className="py-1 pr-3 font-medium capitalize">
                   {m.label}
                 </th>
               ))}
@@ -71,7 +71,7 @@ export function ObjectivesGrid({ reps, months, initial }: Props) {
                       defaultValue={fmt(total)}
                       onBlur={(e) => num(e.target.value) !== total && spread(r.id, e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), e.currentTarget.blur())}
-                      className="input w-28 text-right font-semibold"
+                      className="input min-w-24 max-w-32 text-right font-semibold"
                       inputMode="decimal"
                       aria-label={`Objectif trimestriel de ${r.name}`}
                     />
@@ -82,7 +82,7 @@ export function ObjectivesGrid({ reps, months, initial }: Props) {
                         name={`obj_${r.id}_${m.value}`}
                         value={row[i]}
                         onChange={(e) => setValues((v) => ({ ...v, [r.id]: v[r.id].map((x, j) => (j === i ? e.target.value : x)) }))}
-                        className="input w-28 text-right"
+                        className="input min-w-24 max-w-32 text-right"
                         inputMode="decimal"
                         aria-label={`Objectif de ${r.name}, ${m.label}`}
                       />

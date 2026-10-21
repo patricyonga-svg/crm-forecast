@@ -21,12 +21,12 @@ export default async function PipelineSettingsPage() {
         <label className="block space-y-1">
           <span className="font-semibold">1. Multiple de forecast</span>
           <span className="block text-sm text-zinc-600">Forecast minimal = objectif du trimestre × ce multiple.</span>
-          <input name="forecast_multiple" defaultValue={fm} inputMode="decimal" className="input w-32" disabled={!isAdmin} required />
+          <input name="forecast_multiple" defaultValue={fm} inputMode="decimal" className="input max-w-32" disabled={!isAdmin} required />
         </label>
         <label className="block space-y-1">
           <span className="font-semibold">2. Multiple de pipe</span>
           <span className="block text-sm text-zinc-600">Pipe minimal = forecast minimal × ce multiple.</span>
-          <input name="pipe_multiple" defaultValue={pm} inputMode="decimal" className="input w-32" disabled={!isAdmin} required />
+          <input name="pipe_multiple" defaultValue={pm} inputMode="decimal" className="input max-w-32" disabled={!isAdmin} required />
         </label>
         <p className="rounded-md bg-zinc-50 p-3 text-sm text-zinc-700">
           Exemple avec les valeurs enregistrées : pour un objectif de 45 M XOF, il faut au moins <strong>{example(45 * fm)} M XOF</strong> de forecast et{" "}

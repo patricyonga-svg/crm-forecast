@@ -84,11 +84,13 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
                   className="flex h-14 items-center justify-center rounded-md px-3 text-sm font-semibold text-white"
                   style={{ width: `${width}%`, background: LEVEL_COLORS[i] }}
                 >
-                  <span className="truncate">{formatM(l.amount)} XOF</span>
+                  {width >= 15 && <span className="truncate">{formatM(l.amount)} XOF</span>}
                 </div>
               </div>
               <div className="text-sm">
-                <div className="font-bold">{l.label}</div>
+                <div className="font-bold">
+                  {l.label} · {formatM(l.amount)} XOF
+                </div>
                 <div className="text-zinc-500">
                   {l.count} affaire{l.count > 1 ? "s" : ""}
                   {conversion !== null && ` · ${conversion} % du niveau précédent`}

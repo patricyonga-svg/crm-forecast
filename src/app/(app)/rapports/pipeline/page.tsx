@@ -92,18 +92,22 @@ export default async function PipelineReportPage({ searchParams }: { searchParam
                 {g.rows.map((r) => (
                   <tr key={r.key} className={r.noTarget ? "text-zinc-500" : ""}>
                     <td className="py-1.5 pr-2 font-semibold">{r.name}</td>
-                    <td className="py-1.5 pr-2 text-right tabular-nums">{r.noTarget ? "—" : formatM(r.cov.objective)}</td>
+                    <td className="py-1.5 pr-2 text-right tabular-nums">{r.cov.objective ? formatM(r.cov.objective) : "—"}</td>
                     <td className="w-1/5 py-1.5 pl-4">
                       <CoverageBar done={r.cov.done} value={r.cov.forecast} needed={r.cov.forecastNeeded} scale={g.forecastScale} strong={c.strong} light={c.light} />
                     </td>
-                    <td className="py-1.5 pl-2 text-right">{r.noTarget ? "—" : <Rate rate={ratio(r.cov.forecast, r.cov.forecastNeeded)} />}</td>
+                    <td className="py-1.5 pl-2 text-right">
+                      <Rate rate={ratio(r.cov.forecast, r.cov.forecastNeeded)} />
+                    </td>
                     <td className="whitespace-nowrap py-1.5 pl-2 text-right text-xs text-zinc-500 tabular-nums">
                       {formatM(r.cov.forecast).replace(" M", "")}/{formatM(r.cov.forecastNeeded).replace(" M", "")}
                     </td>
                     <td className="w-1/5 py-1.5 pl-4">
                       <CoverageBar value={r.cov.pipe} needed={r.cov.pipeNeeded} scale={g.pipeScale} strong={c.strong} light={c.light} />
                     </td>
-                    <td className="py-1.5 pl-2 text-right">{r.noTarget ? "—" : <Rate rate={ratio(r.cov.pipe, r.cov.pipeNeeded)} />}</td>
+                    <td className="py-1.5 pl-2 text-right">
+                      <Rate rate={ratio(r.cov.pipe, r.cov.pipeNeeded)} />
+                    </td>
                     <td className="whitespace-nowrap py-1.5 pl-2 text-right text-xs text-zinc-500 tabular-nums">
                       {formatM(r.cov.pipe).replace(" M", "")}/{formatM(r.cov.pipeNeeded).replace(" M", "")}
                     </td>

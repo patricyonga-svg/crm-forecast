@@ -28,7 +28,7 @@ export default async function AchievementsPage({ searchParams }: { searchParams:
     const sum = (k: "monthDone" | "monthObjective" | "done" | "objective") => rows.reduce((s, r) => s + r[k], 0);
     return { ...g, rows, monthDone: sum("monthDone"), monthObjective: sum("monthObjective"), done: sum("done"), objective: sum("objective") };
   });
-  const reps = groups.flatMap((g) => g.rows.filter((r) => !r.noTarget));
+  const reps = groups.flatMap((g) => g.rows.filter((r) => !r.noTarget && (r.objective > 0 || r.monthDone > 0)));
   const billed = reps.filter((r) => r.monthDone > 0).length;
   const onTrack = reps.filter((r) => r.monthObjective > 0 && r.monthDone / r.monthObjective >= (monthElapsed || 1)).length;
 
