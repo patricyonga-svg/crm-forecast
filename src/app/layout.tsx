@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Fredoka, Inter } from "next/font/google";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
+// Police arrondie du nom « Cerise » : ludique mais sobre.
+const fredoka = Fredoka({ subsets: ["latin"], weight: ["600"], variable: "--font-fredoka" });
 
 export const metadata: Metadata = {
   title: "Cerise",
@@ -11,7 +13,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="fr" className={inter.variable}>
+    <html lang="fr" className={`${inter.variable} ${fredoka.variable}`}>
       <body className="antialiased">{children}</body>
     </html>
   );
