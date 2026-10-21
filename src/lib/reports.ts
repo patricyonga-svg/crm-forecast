@@ -130,6 +130,16 @@ export function groupByCountry(
 export const sumObjectives = (objectives: RepObjective[], months: string[]) =>
   objectives.filter((o) => months.includes(o.month)).reduce((s, o) => s + Number(o.amount), 0);
 
+/**
+ * Objectif saisi : en millions de XOF (« 45 », « 4,5 ») ou en montant complet (« 45 000 000 »).
+ * Aucun objectif réel ne dépasse 100 000 M XOF ni ne descend sous 100 000 XOF : le seuil distingue les deux.
+ */
+export function parseObjective(value: string): number {
+  const n = Number(value.replace(/[\s\u00a0\u202f]/g, "").replace(",", "."));
+  if (!Number.isFinite(n) || n <= 0) return 0;
+  return n >= 100_000 ? Math.round(n) : Math.round(n * 1_000_000);
+}
+
 const millions = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
 
 /** Montant en millions, comme dans les présentations : « 20 M », « 9,4 M ». */

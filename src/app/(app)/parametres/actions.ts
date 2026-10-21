@@ -2,12 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-
-/** Montant saisi en millions de XOF (« 45 », « 4,5 ») converti en XOF. */
-function millions(value: FormDataEntryValue | null): number {
-  const n = Number(String(value ?? "").replace(/[\s  ]/g, "").replace(",", "."));
-  return Number.isFinite(n) && n > 0 ? Math.round(n * 1_000_000) : 0;
-}
+import { parseObjective } from "@/lib/reports";
 
 export async function saveObjectives(form: FormData) {
   const supabase = await createClient();
@@ -15,7 +10,7 @@ export async function saveObjectives(form: FormData) {
     .filter((k) => k.startsWith("obj_"))
     .map((k) => {
       const [, rep, month] = k.split("_");
-      return { sales_rep_id: Number(rep), month, amount: millions(form.get(k)) };
+      return { sales_rep_id: Number(rep), month, amount: parseObjective(String(form.get(k) ?? "")) };
     });
   if (rows.length) {
     const { error } = await supabase.from("rep_objectives").upsert(rows);

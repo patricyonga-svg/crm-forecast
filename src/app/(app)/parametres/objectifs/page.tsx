@@ -28,7 +28,7 @@ export default async function ObjectivesPage({ searchParams }: { searchParams: P
           <p className="eyebrow">Paramétrage</p>
           <h1 className="text-2xl font-extrabold">Objectifs commerciaux · {trimestre.replace("-", " ")}</h1>
           <p className="text-sm text-zinc-600">
-            Montants en <strong>millions de XOF</strong>. Saisissez l&apos;objectif de chaque mois, ou l&apos;objectif du trimestre qui sera réparti
+            Montants en <strong>millions de XOF</strong> (45 = 45 M XOF) ; un montant complet comme 45 000 000 est aussi accepté. Saisissez l&apos;objectif de chaque mois, ou l&apos;objectif du trimestre qui sera réparti
             selon le phasage. L&apos;objectif d&apos;un pays est la somme de ceux de ses commerciaux.
           </p>
         </div>

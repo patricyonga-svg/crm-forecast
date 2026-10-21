@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { coverage, elapsed, formatM, funnel, groupByCountry, inQuarter, monthEnd, previousQuarter, realised, type ReportDeal } from "./reports";
+import { coverage, elapsed, formatM, parseObjective, funnel, groupByCountry, inQuarter, monthEnd, previousQuarter, realised, type ReportDeal } from "./reports";
 
 const deal = (stage: ReportDeal["stage"], date: string | null, amount: number, rep: number | null = 1): ReportDeal => ({
   country_code: "SN",
@@ -78,4 +78,13 @@ test("regroupement par pays avec ligne « Sans commercial »", () => {
 test("montants en millions", () => {
   assert.equal(formatM(20_400_000), "20 M");
   assert.equal(formatM(9_400_000), "9,4 M");
+});
+
+test("objectifs saisis en millions ou en montant complet", () => {
+  assert.equal(parseObjective("45"), 45_000_000);
+  assert.equal(parseObjective("4,5"), 4_500_000);
+  assert.equal(parseObjective("13 500 000"), 13_500_000);
+  assert.equal(parseObjective("13500000"), 13_500_000);
+  assert.equal(parseObjective(""), 0);
+  assert.equal(parseObjective("abc"), 0);
 });
