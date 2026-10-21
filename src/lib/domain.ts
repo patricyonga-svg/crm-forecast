@@ -1,8 +1,10 @@
 export const STAGES = [
   { value: "opportunite", label: "Opportunité", help: "Devis envoyé, retour non négatif, closing dans les 6 mois" },
+  { value: "a_relancer", label: "À relancer", help: "Pas de retour du client, relance nécessaire" },
   { value: "forecast", label: "Forecast", help: "Devis validé, date de closing connue" },
   { value: "won_pending", label: "Won Pending", help: "Facturé, pas encore encaissé" },
   { value: "won", label: "Won", help: "Facturé et encaissé" },
+  { value: "perdu", label: "Perdu", help: "Affaire perdue ou abandonnée, hors pipe" },
 ] as const;
 
 export type Stage = (typeof STAGES)[number]["value"];
@@ -11,9 +13,11 @@ export const STAGE_LABEL: Record<Stage, string> = Object.fromEntries(STAGES.map(
 
 export const STAGE_COLOR: Record<Stage, string> = {
   opportunite: "bg-zinc-100 text-zinc-700",
+  a_relancer: "bg-orange-100 text-orange-800",
   forecast: "bg-blue-100 text-blue-800",
   won_pending: "bg-amber-100 text-amber-800",
   won: "bg-emerald-100 text-emerald-800",
+  perdu: "bg-red-50 text-red-700 line-through",
 };
 
 export type Deal = {

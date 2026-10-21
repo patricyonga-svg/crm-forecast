@@ -8,7 +8,7 @@ const deal = (stage: ReportDeal["stage"], date: string | null, amount: number, r
   stage,
   expected_close_date: date,
   quote_amount: amount,
-  forecast_amount: stage === "opportunite" ? 0 : amount,
+  forecast_amount: stage === "forecast" || stage === "won_pending" || stage === "won" ? amount : 0,
   invoiced_amount: stage === "won_pending" || stage === "won" ? amount : 0,
 });
 
@@ -87,4 +87,16 @@ test("objectifs saisis en millions ou en montant complet", () => {
   assert.equal(parseObjective("13500000"), 13_500_000);
   assert.equal(parseObjective(""), 0);
   assert.equal(parseObjective("abc"), 0);
+});
+
+test("étapes À relancer et Perdu", () => {
+  const deals = [deal("a_relancer", "2026-11-05", 40), deal("perdu", "2026-11-05", 500), deal("won", "2026-10-05", 10)];
+  assert.equal(inQuarter(deal("a_relancer", "2026-08-10", 1), "2026-T4"), true);
+  const c = coverage(deals, 10, "2026-T4", { forecast_multiple: 1, pipe_multiple: 3 });
+  assert.equal(c.pipe, 50);
+  assert.equal(c.forecast, 10);
+  assert.deepEqual(
+    funnel(deals).map((l) => l.amount),
+    [50, 10, 10, 10],
+  );
 });

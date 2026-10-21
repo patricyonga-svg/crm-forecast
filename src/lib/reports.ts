@@ -28,6 +28,8 @@ export function previousQuarter(value: string): string {
   return q === 1 ? `${y - 1}-T4` : `${y}-T${q - 1}`;
 }
 
+const OPEN_STAGES: Stage[] = ["opportunite", "a_relancer", "forecast"];
+
 /**
  * Affaires prises en compte pour un trimestre : celles datées dans le trimestre,
  * plus les affaires encore ouvertes (Opportunité, Forecast) datées du trimestre précédent, en retard.
@@ -38,7 +40,7 @@ export function inQuarter(d: ReportDeal, trimestre: string): boolean {
   const { from, to } = quarterRange(trimestre);
   if (date >= from && date <= to) return true;
   const late = quarterRange(previousQuarter(trimestre));
-  return (d.stage === "opportunite" || d.stage === "forecast") && date >= late.from && date < from;
+  return OPEN_STAGES.includes(d.stage) && date >= late.from && date < from;
 }
 
 /** Réalisé = montant facturé (Won Pending + Won) des affaires dont la date de closing tombe dans [from, to]. */
@@ -64,14 +66,14 @@ export type Coverage = {
   objective: number;
   done: number;
   forecast: number; // réalisé + affaires au stade Forecast
-  pipe: number; // toutes les affaires de la période (montant des devis)
+  pipe: number; // toutes les affaires de la période sauf les perdues (montant des devis)
   forecastNeeded: number;
   pipeNeeded: number;
 };
 
 export function coverage(deals: ReportDeal[], objective: number, trimestre: string, settings: Settings): Coverage {
   const { from, to } = quarterRange(trimestre);
-  const scoped = deals.filter((d) => inQuarter(d, trimestre));
+  const scoped = deals.filter((d) => d.stage !== "perdu" && inQuarter(d, trimestre));
   const forecastNeeded = objective * Number(settings.forecast_multiple);
   return {
     objective,
@@ -84,7 +86,7 @@ export function coverage(deals: ReportDeal[], objective: number, trimestre: stri
 }
 
 export const FUNNEL_LEVELS: { label: string; stages: Stage[] }[] = [
-  { label: "Opportunité", stages: ["opportunite", "forecast", "won_pending", "won"] },
+  { label: "Opportunité", stages: ["opportunite", "a_relancer", "forecast", "won_pending", "won"] },
   { label: "Forecast", stages: ["forecast", "won_pending", "won"] },
   { label: "Won Pending", stages: ["won_pending", "won"] },
   { label: "Won", stages: ["won"] },

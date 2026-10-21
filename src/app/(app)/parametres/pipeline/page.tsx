@@ -45,7 +45,7 @@ export default async function PipelineSettingsPage() {
             <strong>Forecast</strong> : réalisé + affaires au stade Forecast du trimestre.
           </li>
           <li>
-            <strong>Pipe</strong> : toutes les affaires du trimestre (Opportunité, Forecast, Won Pending, Won).
+            <strong>Pipe</strong> : toutes les affaires du trimestre (Opportunité, À relancer, Forecast, Won Pending, Won), sauf les affaires perdues.
           </li>
           <li>Les affaires encore ouvertes datées du trimestre précédent comptent dans le trimestre en cours. Les affaires sans date de closing ne comptent pas.</li>
         </ul>

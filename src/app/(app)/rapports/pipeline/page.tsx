@@ -120,7 +120,7 @@ export default async function PipelineReportPage({ searchParams }: { searchParam
       })}
 
       <p className="text-xs text-zinc-500">
-        Forecast = réalisé + affaires au stade Forecast du trimestre · Pipe = toutes les affaires du trimestre (Opportunité, Forecast, Won Pending, Won) ·
+        Forecast = réalisé + affaires au stade Forecast du trimestre · Pipe = toutes les affaires du trimestre sauf les perdues (Opportunité, À relancer, Forecast, Won Pending, Won) ·
         les affaires ouvertes datées du trimestre précédent sont comptées en retard · montants en millions de XOF.
       </p>
     </div>

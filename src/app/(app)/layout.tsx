@@ -1,13 +1,14 @@
 import Image from "next/image";
 import Link from "next/link";
 import { getSession } from "@/lib/session";
+import { NavDropdown } from "@/components/NavDropdown";
 import { signOut } from "./actions";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { profile, user } = await getSession();
   return (
     <div className="min-h-screen">
-      <header className="bg-brand-navy text-white">
+      <header className="bg-brand-header text-white">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
           <Link href="/affaires" className="flex items-center gap-2.5">
             <Image src="/susu-logo.png" alt="SUSU" width={74} height={24} priority />
@@ -18,22 +19,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
               Affaires
             </Link>
             <Link href="/affaires?vue=relances" className="hover:text-white">
-              À relancer
-            </Link>
-            <Link href="/tableau-de-bord" className="hover:text-white">
-              Tableau de bord
+              Actions à faire
             </Link>
             <Link href="/rapports" className="hover:text-white">
               Rapports
             </Link>
-            {(profile?.role === "admin" || profile?.role === "manager") && (
-              <Link href="/parametres/objectifs" className="hover:text-white">
-                Objectifs
-              </Link>
-            )}
-            <Link href="/parametres/pipeline" className="hover:text-white">
-              Paramètres pipeline
-            </Link>
+            <NavDropdown
+              label="Paramètres"
+              items={[
+                ...(profile?.role === "admin" || profile?.role === "manager" ? [{ href: "/parametres/objectifs", label: "Objectifs" }] : []),
+                { href: "/parametres/pipeline", label: "Paramètres pipeline" },
+              ]}
+            />
             {profile?.role === "admin" && (
               <Link href="/utilisateurs" className="hover:text-white">
                 Utilisateurs
