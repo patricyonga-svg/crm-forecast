@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getReferences, getSession } from "@/lib/session";
 import { STAGES, formatDate, formatMoney, quarterRange, type Deal } from "@/lib/domain";
+import { MultiSelect } from "@/components/MultiSelect";
 import { StageBadge } from "@/components/StageBadge";
 
 type Row = Deal & {
@@ -9,7 +10,13 @@ type Row = Deal & {
   sales_reps: { display_name: string } | null;
 };
 
-type Search = { q?: string; pays?: string; etape?: string; porteur?: string; lob?: string; trimestre?: string; vue?: string };
+type Param = string | string[] | undefined;
+type Search = { q?: string; pays?: Param; etape?: Param; porteur?: Param; lob?: Param; trimestre?: Param; vue?: string };
+
+/** Valeurs d'un filtre à choix multiple (?pays=SN&pays=CI), sans doublon ni valeur vide. */
+function list(p: Param): string[] {
+  return [...new Set((Array.isArray(p) ? p : p ? [p] : []).filter(Boolean))];
+}
 
 export default async function DealsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const params = await searchParams;
@@ -24,15 +31,29 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
     .limit(2000);
 
   if (params.q) query = query.ilike("clients.name", `%${params.q}%`);
-  if (params.pays) query = query.eq("country_code", params.pays);
-  if (params.etape) query = query.eq("stage", params.etape);
-  if (params.lob) query = query.eq("business_line_id", Number(params.lob));
-  if (params.porteur === "aucun") query = query.is("sales_rep_id", null);
-  else if (params.porteur) query = query.eq("sales_rep_id", Number(params.porteur));
-  if (params.trimestre === "sans-date") query = query.is("expected_close_date", null);
-  else if (params.trimestre) {
-    const { from, to } = quarterRange(params.trimestre);
-    query = query.gte("expected_close_date", from).lte("expected_close_date", to);
+  const f = {
+    pays: list(params.pays),
+    etape: list(params.etape),
+    lob: list(params.lob),
+    porteur: list(params.porteur),
+    trimestre: list(params.trimestre),
+  };
+  if (f.pays.length) query = query.in("country_code", f.pays);
+  if (f.etape.length) query = query.in("stage", f.etape);
+  if (f.lob.length) query = query.in("business_line_id", f.lob.map(Number));
+  if (f.porteur.length) {
+    const ids = f.porteur.filter((p) => p !== "aucun").map(Number).filter(Number.isFinite);
+    const parts = [...(ids.length ? [`sales_rep_id.in.(${ids.join(",")})`] : []), ...(f.porteur.includes("aucun") ? ["sales_rep_id.is.null"] : [])];
+    query = query.or(parts.length ? parts.join(",") : "sales_rep_id.eq.-1");
+  }
+  if (f.trimestre.length) {
+    const parts = f.trimestre.flatMap((t) => {
+      if (t === "sans-date") return ["expected_close_date.is.null"];
+      if (!/^\d{4}-T[1-4]$/.test(t)) return [];
+      const { from, to } = quarterRange(t);
+      return [`and(expected_close_date.gte.${from},expected_close_date.lte.${to})`];
+    });
+    if (parts.length) query = query.or(parts.join(","));
   }
   if (params.vue === "relances") query = query.lte("next_action_date", today).not("stage", "in", "(won,perdu)");
   if (params.vue === "miennes") {
@@ -72,49 +93,47 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
       <form className="card grid grid-cols-2 gap-2 md:grid-cols-7">
         {params.vue && <input type="hidden" name="vue" value={params.vue} />}
         <input name="q" defaultValue={params.q} placeholder="Client…" className="input col-span-2 md:col-span-1" />
-        <select name="pays" defaultValue={params.pays ?? ""} className="input">
-          <option value="">Tous les pays</option>
-          {refs.countries.map((c) => (
-            <option key={c.code} value={c.code}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-        <select name="etape" defaultValue={params.etape ?? ""} className="input">
-          <option value="">Toutes les étapes</option>
-          {STAGES.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-        <select name="lob" defaultValue={params.lob ?? ""} className="input">
-          <option value="">Toutes les LoB</option>
-          {refs.lines.map((l) => (
-            <option key={l.id} value={l.id}>
-              {l.name}
-            </option>
-          ))}
-        </select>
-        <select name="porteur" defaultValue={params.porteur ?? ""} className="input">
-          <option value="">Tous les porteurs</option>
-          <option value="aucun">Sans porteur</option>
-          {refs.reps.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.display_name}
-            </option>
-          ))}
-        </select>
-        <select name="trimestre" defaultValue={params.trimestre ?? ""} className="input">
-          <option value="">Toutes les dates</option>
-          <option value="sans-date">Sans date de closing</option>
-          {quarters.map((q) => (
-            <option key={q} value={q}>
-              {q.replace("-", " ")}
-            </option>
-          ))}
-        </select>
-        <button className="btn">Filtrer</button>
+        <MultiSelect
+          key={`pays:${f.pays.join()}`}
+          name="pays"
+          allLabel="Tous les pays"
+          defaultValue={f.pays}
+          options={refs.countries.map((c) => ({ value: c.code, label: c.name }))}
+        />
+        <MultiSelect
+          key={`etape:${f.etape.join()}`}
+          name="etape"
+          allLabel="Toutes les étapes"
+          defaultValue={f.etape}
+          options={STAGES.map((st) => ({ value: st.value, label: st.label }))}
+        />
+        <MultiSelect
+          key={`lob:${f.lob.join()}`}
+          name="lob"
+          allLabel="Toutes les LoB"
+          defaultValue={f.lob}
+          options={refs.lines.map((l) => ({ value: String(l.id), label: l.name }))}
+        />
+        <MultiSelect
+          key={`porteur:${f.porteur.join()}`}
+          name="porteur"
+          allLabel="Tous les porteurs"
+          defaultValue={f.porteur}
+          options={[{ value: "aucun", label: "Sans porteur" }, ...refs.reps.map((r) => ({ value: String(r.id), label: r.display_name }))]}
+        />
+        <MultiSelect
+          key={`trimestre:${f.trimestre.join()}`}
+          name="trimestre"
+          allLabel="Toutes les dates"
+          defaultValue={f.trimestre}
+          options={[{ value: "sans-date", label: "Sans date de closing" }, ...quarters.map((q) => ({ value: q, label: q.replace("-", " ") }))]}
+        />
+        <div className="flex gap-2">
+          <button className="btn flex-1">Filtrer</button>
+          <Link href={params.vue ? `/affaires?vue=${params.vue}` : "/affaires"} className="btn-secondary px-3" title="Effacer les filtres">
+            ✕
+          </Link>
+        </div>
       </form>
 
       <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
