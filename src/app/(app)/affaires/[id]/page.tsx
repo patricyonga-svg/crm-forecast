@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/components/SubmitButton";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getReferences, getSession } from "@/lib/session";
@@ -59,7 +60,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           <form action={updateDeal.bind(null, deal.id)} className="card space-y-3">
             <h2 className="font-medium">Informations</h2>
             <DealFields refs={refs} deal={deal} country={deal.country_code} />
-            <button className="btn">Enregistrer</button>
+            <SubmitButton>Enregistrer</SubmitButton>
           </form>
 
           <div className="card space-y-3">
@@ -74,7 +75,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
               </select>
               <input type="date" name="happened_on" defaultValue={today} className="input" />
               <input name="body" placeholder="Ce qui s'est passé, ce qui est attendu…" className="input" required />
-              <button className="btn">Ajouter</button>
+              <SubmitButton pendingLabel="Ajout…">Ajouter</SubmitButton>
             </form>
             <ul className="divide-y divide-zinc-100">
               {(activities.data ?? []).map((a) => (
@@ -112,7 +113,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                 <form action={addPayment.bind(null, deal.id)} className="grid grid-cols-2 gap-2">
                   <input type="date" name="paid_on" defaultValue={today} className="input" required />
                   <input type="number" name="amount" min={1} placeholder="Montant" className="input" required />
-                  <button className="btn-secondary col-span-2">Ajouter un paiement</button>
+                  <SubmitButton className="btn-secondary col-span-2" pendingLabel="Ajout…">Ajouter un paiement</SubmitButton>
                 </form>
                 <p className="text-xs text-zinc-500">Passez l&apos;affaire en Won une fois le paiement complet reçu.</p>
               </>

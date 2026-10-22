@@ -39,8 +39,8 @@ export async function createDeal(form: FormData) {
   if (!country || !name) throw new Error("Client et pays obligatoires");
 
   // Réutilise un client existant du même pays plutôt que de créer un doublon.
-  const { data: existing } = await supabase.from("clients").select("id").eq("country_code", country).ilike("name", name).maybeSingle();
-  let clientId = existing?.id;
+  const { data: existing } = await supabase.from("clients").select("id").eq("country_code", country).ilike("name", name).order("created_at").limit(1);
+  let clientId = existing?.[0]?.id;
   if (!clientId) {
     const { data, error } = await supabase
       .from("clients")
@@ -51,9 +51,21 @@ export async function createDeal(form: FormData) {
     clientId = data.id;
   }
 
+  // Filet de sécurité contre le double envoi : la même affaire créée il y a moins d'une minute est réutilisée.
+  const fields = dealFields(form);
+  const { data: recent } = await supabase
+    .from("deals")
+    .select("id")
+    .eq("client_id", clientId)
+    .eq("stage", fields.stage!)
+    .eq("quote_amount", fields.quote_amount)
+    .gte("created_at", new Date(Date.now() - 60_000).toISOString())
+    .limit(1);
+  if (recent?.[0]) redirect(`/affaires/${recent[0].id}`);
+
   const { data, error } = await supabase
     .from("deals")
-    .insert({ ...dealFields(form), client_id: clientId, country_code: country })
+    .insert({ ...fields, client_id: clientId, country_code: country })
     .select("id")
     .single();
   if (error) throw new Error(error.message);

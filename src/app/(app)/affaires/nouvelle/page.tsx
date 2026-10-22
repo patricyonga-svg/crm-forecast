@@ -1,3 +1,4 @@
+import { SubmitButton } from "@/components/SubmitButton";
 import { getReferences, getSession } from "@/lib/session";
 import { DealFields } from "@/components/DealFields";
 import { createDeal } from "../actions";
@@ -38,7 +39,7 @@ export default async function NewDealPage() {
       <div className="card">
         <DealFields refs={refs} country={profile?.country_code ?? undefined} deal={{ sales_rep_id: myRep?.id ?? null }} />
       </div>
-      <button className="btn">Créer l&apos;affaire</button>
+      <SubmitButton>Créer l&apos;affaire</SubmitButton>
     </form>
   );
 }
