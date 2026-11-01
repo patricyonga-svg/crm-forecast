@@ -1,4 +1,4 @@
-import { STAGES, type Deal } from "@/lib/domain";
+import { CARDS_STATUS, STAGES, type Deal } from "@/lib/domain";
 
 type Refs = {
   lines: { id: number; name: string }[];
@@ -80,6 +80,17 @@ export function DealFields({
       <label className="space-y-1 text-sm">
         <span className="text-zinc-600">Date de la prochaine action</span>
         <input name="next_action_date" type="date" defaultValue={deal?.next_action_date ?? ""} className="input" />
+      </label>
+      <label className="space-y-1 text-sm">
+        <span className="text-zinc-600">Cartes</span>
+        <select name="cards_status" defaultValue={deal?.cards_status ?? ""} className="input">
+          <option value="">— (obligatoire pour passer en Won Pending)</option>
+          {CARDS_STATUS.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </select>
       </label>
       <label className="space-y-1 text-sm md:col-span-2">
         <span className="text-zinc-600">Commentaire{commentRequired && " *"}</span>

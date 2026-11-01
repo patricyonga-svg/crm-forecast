@@ -8,6 +8,7 @@ import {
   formatDate,
   formatDateTime,
   formatMoney,
+  needsCollectionReminder,
   SECTORS,
   STAGE_LABEL,
   STAGES,
@@ -22,13 +23,12 @@ import { DealFields } from "@/components/DealFields";
 import { ActionForm } from "@/components/ActionForm";
 import { ContactFields } from "@/components/ContactFields";
 import { ContactPicker } from "@/components/ContactPicker";
-import { LocalDateTime } from "@/components/LocalDateTime";
+import { BookingForm } from "@/components/BookingForm";
 import { YesNo } from "@/components/YesNo";
 import {
   addActivity,
   addContact,
   addPayment,
-  bookAppointment,
   cancelAppointment,
   deletePayment,
   linkContact,
@@ -196,52 +196,9 @@ export default async function DealPage({ params, searchParams }: { params: Promi
 
             <details open={action === "rdv" || (deal.stage === "prise_rdv" && appointments.length === 0)} className="rounded-lg border border-zinc-200 p-3">
               <summary className="cursor-pointer text-sm font-semibold text-brand-blue">Prendre un rendez-vous pour un commercial</summary>
-              <ActionForm action={bookAppointment.bind(null, deal.id)} className="mt-3 space-y-3" submitLabel="Réserver le rendez-vous" pendingLabel="Réservation…" resetOnSuccess>
-                {action === "rdv" && <input type="hidden" name="move" value="1" />}
-                <div className="grid gap-3 md:grid-cols-2">
-                  <label className="space-y-1 text-sm">
-                    <span className="text-zinc-600">Commercial *</span>
-                    <select name="sales_rep_id" required defaultValue={deal.sales_rep_id ?? ""} className="input">
-                      <option value="">—</option>
-                      {countryReps.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.display_name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="space-y-1 text-sm">
-                    <span className="text-zinc-600">Date et heure *</span>
-                    <LocalDateTime name="starts_at" required />
-                  </label>
-                  <label className="space-y-1 text-sm">
-                    <span className="text-zinc-600">Durée</span>
-                    <select name="duration_minutes" defaultValue="60" className="input">
-                      {[
-                        [30, "30 min"],
-                        [45, "45 min"],
-                        [60, "1 h"],
-                        [90, "1 h 30"],
-                        [120, "2 h"],
-                      ].map(([m, label]) => (
-                        <option key={m} value={m}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="space-y-1 text-sm">
-                    <span className="text-zinc-600">Lieu ou lien de visio</span>
-                    <input name="location" className="input" placeholder="Adresse, Google Meet…" />
-                  </label>
-                </div>
-                <ContactPicker name="contact_id" prefix="rdv_" contacts={pickable} label="Personne à rencontrer *" />
-                <label className="block space-y-1 text-sm">
-                  <span className="text-zinc-600">Notes pour le commercial</span>
-                  <textarea name="notes" rows={2} className="input" />
-                </label>
-                <p className="text-xs text-zinc-500">Un email part vers le commercial et vers vous si vous n&apos;êtes pas le commercial.</p>
-              </ActionForm>
+              <div className="mt-3">
+                <BookingForm dealId={deal.id} contacts={pickable} reps={countryReps} defaultRep={deal.sales_rep_id} move={action === "rdv"} />
+              </div>
             </details>
           </div>
 
@@ -371,6 +328,11 @@ export default async function DealPage({ params, searchParams }: { params: Promi
                   ))}
                 </ul>
                 {deal.stage === "won_pending" && <p className="text-xs text-zinc-500">Reste à encaisser : {formatMoney(remaining, currency)}</p>}
+                {needsCollectionReminder(deal) && (
+                  <p className="rounded-md bg-amber-50 p-2 text-xs text-amber-900">
+                    Cartes livrées et moins de la moitié encaissée : le porteur reçoit un rappel par email chaque lundi.
+                  </p>
+                )}
                 <form action={addPayment.bind(null, deal.id)} className="grid grid-cols-2 gap-2">
                   <input type="date" name="paid_on" defaultValue={today} className="input" required />
                   <input type="number" name="amount" min={1} placeholder="Montant" className="input" required />
@@ -501,6 +463,7 @@ const FIELD_LABEL: Record<string, string> = {
   next_action: "Prochaine action",
   next_action_date: "Date de prochaine action",
   comment: "Commentaire",
+  cards_status: "Cartes",
 };
 
 function describeChange(a: AuditRow): string {

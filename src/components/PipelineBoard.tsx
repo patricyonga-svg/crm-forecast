@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { formatDate, STAGE_ACCENT, STAGES, type Stage } from "@/lib/domain";
+import { CARDS_STATUS, formatDate, STAGE_ACCENT, STAGES, type CardsStatus, type Contact, type Stage } from "@/lib/domain";
 import { formatM } from "@/lib/reports";
-import { moveDeal } from "@/app/(app)/affaires/actions";
+import { getBookingData, moveDeal } from "@/app/(app)/affaires/actions";
+import { BookingForm } from "./BookingForm";
 
 export type BoardCard = {
   id: string;
@@ -17,7 +18,12 @@ export type BoardCard = {
   close: string | null;
   country: string;
   late: boolean;
+  cards: CardsStatus | null;
 };
+
+type Dialog =
+  | { kind: "rdv"; card: BoardCard; data: { contacts: Contact[]; reps: { id: number; display_name: string }[]; defaultRep: number | null } | null }
+  | { kind: "cartes"; card: BoardCard };
 
 const money = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
 
@@ -27,22 +33,18 @@ export function PipelineBoard({ cards: initial, stages }: { cards: BoardCard[]; 
   const [cards, setCards] = useState(initial);
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<Stage | null>(null);
-  const [message, setMessage] = useState<{ text: string; href?: string } | null>(null);
+  const [message, setMessage] = useState<{ text: string; href?: string; ok?: boolean } | null>(null);
+  const [dialog, setDialog] = useState<Dialog | null>(null);
   const [, startTransition] = useTransition();
   const columns = STAGES.filter((s) => !stages?.length || stages.includes(s.value));
 
-  function drop(stage: Stage) {
-    setOver(null);
-    const card = cards.find((c) => c.id === dragging);
-    setDragging(null);
-    if (!card || card.stage === stage) return;
+  function move(card: BoardCard, stage: Stage, cards?: CardsStatus) {
     setMessage(null);
     const previous = card.stage;
-    // Les étapes à formulaire (rendez-vous, compte rendu) ouvrent la fiche ; les autres changent tout de suite.
-    const withForm = stage === "prise_rdv" || stage === "cr_rdv";
-    if (!withForm) setCards((cs) => cs.map((c) => (c.id === card.id ? { ...c, stage } : c)));
+    // « CR de rendez-vous » ouvre la fiche sur son formulaire ; les autres étapes changent tout de suite.
+    if (stage !== "cr_rdv") setCards((cs) => cs.map((c) => (c.id === card.id ? { ...c, stage, cards: cards ?? c.cards } : c)));
     startTransition(async () => {
-      const result: { error?: string; redirectTo?: string } = await moveDeal(card.id, stage).catch(() => ({
+      const result: { error?: string; redirectTo?: string } = await moveDeal(card.id, stage, cards).catch(() => ({
         error: "la modification n'a pas pu être enregistrée, réessayez.",
       }));
       if (result.error) {
@@ -56,17 +58,109 @@ export function PipelineBoard({ cards: initial, stages }: { cards: BoardCard[]; 
     });
   }
 
+  function drop(stage: Stage) {
+    setOver(null);
+    const card = cards.find((c) => c.id === dragging);
+    setDragging(null);
+    if (!card || card.stage === stage) return;
+    if (stage === "prise_rdv") {
+      // Le formulaire de rendez-vous s'ouvre ici même ; l'affaire change d'étape une fois le rendez-vous réservé.
+      setDialog({ kind: "rdv", card, data: null });
+      getBookingData(card.id)
+        .then((data) => {
+          if (!data) throw new Error();
+          setDialog((d) => (d?.kind === "rdv" && d.card.id === card.id ? { ...d, data } : d));
+        })
+        .catch(() => {
+          setDialog(null);
+          setMessage({ text: `« ${card.title} » : le formulaire de rendez-vous n'a pas pu s'ouvrir.`, href: `/affaires/${card.id}?action=rdv#rdv` });
+        });
+      return;
+    }
+    if (stage === "won_pending") {
+      setDialog({ kind: "cartes", card });
+      return;
+    }
+    move(card, stage);
+  }
+
   return (
     <div className="space-y-2">
+      {dialog && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/30 p-4" onClick={() => setDialog(null)}>
+          <div className="mt-10 w-full max-w-2xl rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">{dialog.kind === "rdv" ? "Prise de rendez-vous" : "Passage en Won Pending"}</h2>
+                <p className="text-sm text-zinc-500">
+                  {dialog.card.title}
+                  {dialog.card.title !== dialog.card.client && ` · ${dialog.card.client}`}
+                </p>
+              </div>
+              <button onClick={() => setDialog(null)} className="text-zinc-500 hover:text-zinc-800" aria-label="Fermer">
+                ✕
+              </button>
+            </div>
+            {dialog.kind === "rdv" ? (
+              dialog.data ? (
+                <BookingForm
+                  dealId={dialog.card.id}
+                  contacts={dialog.data.contacts}
+                  reps={dialog.data.reps}
+                  defaultRep={dialog.data.defaultRep}
+                  move
+                  onSuccess={(text) => {
+                    const id = dialog.card.id;
+                    setDialog(null);
+                    setCards((cs) => cs.map((c) => (c.id === id ? { ...c, stage: "prise_rdv" } : c)));
+                    setMessage({ text, ok: true });
+                    router.refresh();
+                  }}
+                />
+              ) : (
+                <p className="py-6 text-center text-sm text-zinc-500">Chargement…</p>
+              )
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm">Les cartes ont-elles été livrées ?</p>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {CARDS_STATUS.map((c) => (
+                    <button
+                      key={c.value}
+                      onClick={() => {
+                        const card = dialog.card;
+                        setDialog(null);
+                        move(card, "won_pending", c.value);
+                      }}
+                      className={`rounded-lg border px-3 py-3 text-sm font-semibold hover:border-brand-blue hover:bg-blue-50 ${
+                        dialog.card.cards === c.value ? "border-brand-blue bg-blue-50" : "border-zinc-300"
+                      }`}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs text-zinc-500">
+                  Cartes livrées et moins de la moitié du montant encaissée : le porteur reçoit un rappel par email chaque lundi.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
       {message && (
-        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+        <div
+          className={`flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 text-sm ${
+            message.ok ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"
+          }`}
+        >
           <span>{message.text}</span>
           {message.href && (
             <Link href={message.href} className="font-semibold underline">
               Ouvrir la fiche
             </Link>
           )}
-          <button onClick={() => setMessage(null)} className="ml-auto text-red-700" aria-label="Fermer">
+          <button onClick={() => setMessage(null)} className="ml-auto" aria-label="Fermer">
             ✕
           </button>
         </div>
@@ -136,8 +230,9 @@ export function PipelineBoard({ cards: initial, stages }: { cards: BoardCard[]; 
         </div>
       </div>
       <p className="text-xs text-zinc-500">
-        Glissez une vignette d&apos;une colonne à l&apos;autre pour changer l&apos;étape. Vers « Prise de rendez-vous » ou « CR de rendez-vous », la fiche de
-        l&apos;affaire s&apos;ouvre sur le formulaire correspondant.
+        Glissez une vignette d&apos;une colonne à l&apos;autre pour changer l&apos;étape. Vers « Prise de rendez-vous », le formulaire de rendez-vous
+        s&apos;ouvre ; vers « Won Pending », on vous demande si les cartes sont livrées ; vers « CR de rendez-vous », la fiche de l&apos;affaire s&apos;ouvre
+        sur le compte rendu.
       </p>
     </div>
   );

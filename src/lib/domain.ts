@@ -104,6 +104,21 @@ export type Appointment = {
   reported_at: string | null;
 };
 
+/** Livraison des cartes : à renseigner pour passer en Won Pending. */
+export const CARDS_STATUS = [
+  { value: "livrees", label: "Livrée(s)" },
+  { value: "non_livrees", label: "Non livrée(s)" },
+  { value: "desactivees", label: "Désactivée(s)" },
+] as const;
+
+export type CardsStatus = (typeof CARDS_STATUS)[number]["value"];
+
+export const isCardsStatus = (v: unknown): v is CardsStatus => CARDS_STATUS.some((c) => c.value === v);
+
+/** Rappel d'encaissement : cartes livrées et moins de la moitié du montant encaissée. */
+export const needsCollectionReminder = (d: { stage: string; cards_status: string | null; quote_amount: number; collected_amount: number }) =>
+  d.stage === "won_pending" && d.cards_status === "livrees" && Number(d.collected_amount) < Number(d.quote_amount) / 2;
+
 /** Secteurs proposés (saisie libre possible). */
 export const SECTORS = [
   "Agriculture et agro-industrie",
@@ -127,6 +142,7 @@ export type Deal = {
   id: string;
   name: string | null;
   comment: string | null;
+  cards_status: CardsStatus | null;
   client_id: string;
   country_code: string;
   business_line_id: number | null;

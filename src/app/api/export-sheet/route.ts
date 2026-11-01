@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { replaceSheet } from "@/lib/google-sheets";
-import { STAGE_LABEL, type Stage } from "@/lib/domain";
+import { CARDS_STATUS, STAGE_LABEL, type Stage } from "@/lib/domain";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +21,7 @@ type Row = {
   next_action_date: string | null;
   updated_at: string;
   name: string | null;
+  cards_status: string | null;
   clients: { name: string };
   countries: { name: string };
   business_lines: { name: string } | null;
@@ -63,6 +64,7 @@ export async function GET(request: Request) {
       "Trimestre",
       "Dernière modification",
       "Nom de l'affaire",
+      "Cartes",
     ],
     ...data.map((d) => [
       d.clients.name,
@@ -81,6 +83,7 @@ export async function GET(request: Request) {
       d.quarter_label ?? "",
       d.updated_at.slice(0, 10),
       d.name ?? "",
+      CARDS_STATUS.find((c) => c.value === d.cards_status)?.label ?? "",
     ]),
   ];
 

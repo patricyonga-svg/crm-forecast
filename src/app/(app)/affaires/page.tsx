@@ -74,7 +74,8 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
     { quote: 0, forecast: 0, invoiced: 0, collected: 0 },
   );
 
-  const pipe = params.mode === "pipe";
+  // Le pipe est l'affichage par défaut ; la liste reste celle des « Actions à faire ».
+  const pipe = params.mode ? params.mode === "pipe" : params.vue !== "relances";
   // Lien vers la même liste en conservant les filtres, en changeant seulement le mode d'affichage.
   const withMode = (mode: string | null) => {
     const q = new URLSearchParams();
@@ -96,7 +97,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
         <h1 className="text-xl font-semibold">{params.vue === "relances" ? "Actions à faire" : "Affaires"}</h1>
         <div className="flex flex-wrap gap-2">
           <div className="inline-flex overflow-hidden rounded-md border border-zinc-300 bg-white text-sm font-semibold">
-            <Link href={withMode(null)} className={`px-3 py-2 ${pipe ? "hover:bg-zinc-50" : "bg-brand-navy text-white"}`}>
+            <Link href={withMode("liste")} className={`px-3 py-2 ${pipe ? "hover:bg-zinc-50" : "bg-brand-navy text-white"}`}>
               Liste
             </Link>
             <Link href={withMode("pipe")} className={`border-l border-zinc-300 px-3 py-2 ${pipe ? "bg-brand-navy text-white" : "hover:bg-zinc-50"}`}>
@@ -114,7 +115,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
 
       <form className="card grid grid-cols-2 gap-2 md:grid-cols-7">
         {params.vue && <input type="hidden" name="vue" value={params.vue} />}
-        {pipe && <input type="hidden" name="mode" value="pipe" />}
+        {params.mode && <input type="hidden" name="mode" value={params.mode} />}
         <input name="q" defaultValue={params.q} placeholder="Client…" className="input col-span-2 md:col-span-1" />
         <MultiSelect
           key={`pays:${f.pays.join()}`}
@@ -153,7 +154,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
         />
         <div className="flex gap-2">
           <button className="btn flex-1">Filtrer</button>
-          <Link href={`/affaires?${new URLSearchParams({ ...(params.vue ? { vue: params.vue } : {}), ...(pipe ? { mode: "pipe" } : {}) })}`} className="btn-secondary px-3" title="Effacer les filtres">
+          <Link href={`/affaires?${new URLSearchParams({ ...(params.vue ? { vue: params.vue } : {}), ...(params.mode ? { mode: params.mode } : {}) })}`} className="btn-secondary px-3" title="Effacer les filtres">
             ✕
           </Link>
         </div>
@@ -188,6 +189,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
             rep: d.sales_reps?.display_name ?? null,
             close: d.expected_close_date,
             country: d.country_code,
+            cards: d.cards_status,
             late: !!d.expected_close_date && d.expected_close_date < today && !["won", "won_pending", "perdu"].includes(d.stage),
           }))}
         />

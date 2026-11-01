@@ -15,6 +15,7 @@ export function ActionForm({
   buttonClassName,
   resetOnSuccess = false,
   id,
+  onSuccess,
 }: {
   action: (prev: State, form: FormData) => Promise<State>;
   children: React.ReactNode;
@@ -24,11 +25,19 @@ export function ActionForm({
   buttonClassName?: string;
   resetOnSuccess?: boolean;
   id?: string;
+  onSuccess?: (message: string) => void;
 }) {
   const [state, formAction] = useActionState(action, {});
   const ref = useRef<HTMLFormElement>(null);
+  const callback = useRef(onSuccess);
   useEffect(() => {
-    if (state.ok && resetOnSuccess) ref.current?.reset();
+    callback.current = onSuccess;
+  });
+  // Ne se déclenche qu'à chaque nouvelle réponse de l'action.
+  useEffect(() => {
+    if (!state.ok) return;
+    if (resetOnSuccess) ref.current?.reset();
+    callback.current?.(state.ok);
   }, [state, resetOnSuccess]);
   return (
     <form ref={ref} action={formAction} className={className} id={id}>

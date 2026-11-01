@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { contactName, formatDateTime, isStage, STAGE_LABEL, dealTitle, type Stage } from "@/lib/domain";
+import { type Contact, contactName, formatDateTime, isCardsStatus, isStage, STAGE_LABEL, dealTitle, type Stage } from "@/lib/domain";
 import { calendarInvite, emailConfigured, escapeHtml, googleCalendarLink, sendMail } from "@/lib/email";
 
 export type FormState = { error?: string; ok?: string };
@@ -69,8 +69,11 @@ function dealFields(form: FormData) {
     expected_close_date: text(form, "expected_close_date"),
     next_action: text(form, "next_action"),
     next_action_date: text(form, "next_action_date"),
+    cards_status: isCardsStatus(text(form, "cards_status")) ? text(form, "cards_status") : null,
   };
 }
+
+const CARDS_REQUIRED = "Pour passer en « Won Pending », indiquez si les cartes sont livrées, non livrées ou désactivées.";
 
 const fail = (e: unknown): FormState => {
   // redirect() lève une exception spéciale qu'il faut laisser passer.
@@ -93,6 +96,7 @@ export async function createDeal(_prev: FormState, form: FormData): Promise<Form
     if (!country || !clientName) throw new Error("L'entreprise et le pays sont obligatoires.");
     const sector = text(form, "sector");
     const contact = contactFields(form, "contact_");
+    if (fields.stage === "won_pending" && !fields.cards_status) throw new Error(CARDS_REQUIRED);
     // Réutilise l'entreprise existante du même pays plutôt que de créer un doublon, et complète ce qui manque.
     const { data: existing } = await supabase
       .from("clients")
@@ -150,7 +154,12 @@ export async function createDeal(_prev: FormState, form: FormData): Promise<Form
   redirect(target);
 }
 
-async function stageProblem(supabase: Supabase, dealId: string, stage: Stage): Promise<string | null> {
+async function stageProblem(supabase: Supabase, dealId: string, stage: Stage, cardsStatus?: string | null): Promise<string | null> {
+  if (stage === "won_pending") {
+    if (cardsStatus) return null;
+    const { data } = await supabase.from("deals").select("cards_status").eq("id", dealId).single<{ cards_status: string | null }>();
+    return data?.cards_status ? null : CARDS_REQUIRED;
+  }
   if (stage !== "a_contacter") return null;
   const { data: deal } = await supabase.from("deals").select("comment, clients(sector)").eq("id", dealId).single<{ comment: string | null; clients: { sector: string | null } }>();
   const { count } = await supabase.from("deal_contacts").select("contact_id", { count: "exact", head: true }).eq("deal_id", dealId);
@@ -171,7 +180,7 @@ export async function updateDeal(id: string, _prev: FormState, form: FormData): 
       patch = { ...fields, stage: current.stage };
       target = `/affaires/${id}?action=${FORM_FOR_STAGE[fields.stage]}#${FORM_FOR_STAGE[fields.stage]}`;
     } else if (changing) {
-      const problem = await stageProblem(supabase, id, fields.stage);
+      const problem = await stageProblem(supabase, id, fields.stage, fields.cards_status);
       if (problem) {
         // Le reste est enregistré quand même pour que la saisie ne soit pas perdue.
         await supabase.from("deals").update({ ...fields, stage: current.stage }).eq("id", id);
@@ -192,18 +201,42 @@ export async function updateDeal(id: string, _prev: FormState, form: FormData): 
 }
 
 /** Glisser-déposer dans le pipe. Renvoie l'adresse du formulaire à ouvrir pour les étapes qui en ont un. */
-export async function moveDeal(id: string, stage: string): Promise<{ error?: string; redirectTo?: string }> {
+export async function moveDeal(id: string, stage: string, cardsStatus?: string): Promise<{ error?: string; redirectTo?: string }> {
   if (!isStage(stage)) return { error: "Étape invalide." };
   if (FORM_FOR_STAGE[stage]) return { redirectTo: `/affaires/${id}?action=${FORM_FOR_STAGE[stage]}#${FORM_FOR_STAGE[stage]}` };
+  const cards = isCardsStatus(cardsStatus) ? cardsStatus : null;
   const supabase = await createClient();
-  const problem = await stageProblem(supabase, id, stage);
+  const problem = await stageProblem(supabase, id, stage, cards);
   if (problem) return { error: problem, redirectTo: `/affaires/${id}` };
-  const { data, error } = await supabase.from("deals").update({ stage }).eq("id", id).select("id");
+  const { data, error } = await supabase
+    .from("deals")
+    .update(cards ? { stage, cards_status: cards } : { stage })
+    .eq("id", id)
+    .select("id");
   if (error) return { error: error.message };
   if (!data?.length) return { error: "Vous ne pouvez pas modifier cette affaire (réservé à son porteur, au manager du pays et aux administrateurs)." };
   revalidatePath("/affaires");
   revalidatePath(`/affaires/${id}`);
   return {};
+}
+
+/** Contacts et commerciaux pour ouvrir le formulaire de rendez-vous depuis le pipe. */
+export async function getBookingData(dealId: string) {
+  const supabase = await createClient();
+  const { data: deal } = await supabase.from("deals").select("client_id, country_code, sales_rep_id").eq("id", dealId).single();
+  if (!deal) return null;
+  const [{ data: contacts }, { data: links }, { data: reps }] = await Promise.all([
+    supabase.from("contacts").select("*").eq("client_id", deal.client_id).order("last_name"),
+    supabase.from("deal_contacts").select("contact_id").eq("deal_id", dealId),
+    supabase.from("sales_reps").select("id, display_name, country_code, active").order("display_name"),
+  ]);
+  const linked = new Set((links ?? []).map((l) => l.contact_id));
+  const all = (contacts ?? []) as Contact[];
+  return {
+    contacts: [...all.filter((c) => linked.has(c.id)), ...all.filter((c) => !linked.has(c.id))],
+    reps: (reps ?? []).filter((r) => r.active !== false && (!r.country_code || r.country_code === deal.country_code)),
+    defaultRep: deal.sales_rep_id as number | null,
+  };
 }
 
 // Entreprise et contacts ----------------------------------------------------------------
