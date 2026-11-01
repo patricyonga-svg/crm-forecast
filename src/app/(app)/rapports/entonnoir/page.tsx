@@ -136,7 +136,7 @@ export default async function FunnelPage({ searchParams }: { searchParams: Promi
 
       <p className="text-xs text-zinc-500">
         Entonnoir cumulé sur les affaires dont la date de closing tombe dans la période : chaque niveau compte les affaires arrivées au moins à cette
-        étape (le niveau Opportunité contient donc tout le pipe). Les affaires perdues sont exclues
+        étape (le niveau Opportunité contient donc tout le pipe). Les affaires en prospection (À contacter, Prise de rendez-vous, CR de rendez-vous) et les affaires perdues sont exclues
         {lost.length > 0 && ` (${lost.length} sur la période, ${formatM(lost.reduce((s, d) => s + Number(d.quote_amount), 0))} XOF)`}. Montants des devis en
         millions de XOF.
         {undated > 0 && ` ${undated} affaires sans date de closing ne sont pas comptées.`}

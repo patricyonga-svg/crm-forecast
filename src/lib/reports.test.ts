@@ -100,3 +100,14 @@ test("étapes À relancer et Perdu", () => {
     [50, 10, 10, 10],
   );
 });
+
+test("étapes de prospection : hors pipe, hors forecast et hors entonnoir", () => {
+  const deals = [deal("a_contacter", "2026-11-05", 7), deal("prise_rdv", "2026-11-05", 7), deal("cr_rdv", "2026-11-05", 7), deal("opportunite", "2026-11-05", 40)];
+  const c = coverage(deals, 10, "2026-T4", { forecast_multiple: 1, pipe_multiple: 3 });
+  assert.equal(c.pipe, 40);
+  assert.equal(c.forecast, 0);
+  assert.deepEqual(
+    funnel(deals).map((l) => l.count),
+    [1, 0, 0, 0],
+  );
+});

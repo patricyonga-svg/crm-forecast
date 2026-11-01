@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getReferences, getSession } from "@/lib/session";
-import { STAGES, formatDate, formatMoney, quarterRange, type Deal } from "@/lib/domain";
+import { STAGES, dealTitle, formatDate, formatMoney, isStage, quarterRange, type Deal } from "@/lib/domain";
+import { PipelineBoard } from "@/components/PipelineBoard";
 import { MultiSelect } from "@/components/MultiSelect";
 import { StageBadge } from "@/components/StageBadge";
 
@@ -11,7 +12,7 @@ type Row = Deal & {
 };
 
 type Param = string | string[] | undefined;
-type Search = { q?: string; pays?: Param; etape?: Param; porteur?: Param; lob?: Param; trimestre?: Param; vue?: string };
+type Search = { q?: string; pays?: Param; etape?: Param; porteur?: Param; lob?: Param; trimestre?: Param; vue?: string; mode?: string };
 
 /** Valeurs d'un filtre à choix multiple (?pays=SN&pays=CI), sans doublon ni valeur vide. */
 function list(p: Param): string[] {
@@ -73,6 +74,19 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
     { quote: 0, forecast: 0, invoiced: 0, collected: 0 },
   );
 
+  const pipe = params.mode === "pipe";
+  // Lien vers la même liste en conservant les filtres, en changeant seulement le mode d'affichage.
+  const withMode = (mode: string | null) => {
+    const q = new URLSearchParams();
+    for (const [k, v] of Object.entries(params)) {
+      if (k === "mode" || v === undefined) continue;
+      for (const one of Array.isArray(v) ? v : [v]) q.append(k, one);
+    }
+    if (mode) q.set("mode", mode);
+    const str = q.toString();
+    return `/affaires${str ? `?${str}` : ""}`;
+  };
+
   const year = new Date().getFullYear();
   const quarters = [year, year + 1].flatMap((y) => [1, 2, 3, 4].map((q) => `${y}-T${q}`));
 
@@ -80,7 +94,15 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">{params.vue === "relances" ? "Actions à faire" : "Affaires"}</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <div className="inline-flex overflow-hidden rounded-md border border-zinc-300 bg-white text-sm font-semibold">
+            <Link href={withMode(null)} className={`px-3 py-2 ${pipe ? "hover:bg-zinc-50" : "bg-brand-navy text-white"}`}>
+              Liste
+            </Link>
+            <Link href={withMode("pipe")} className={`border-l border-zinc-300 px-3 py-2 ${pipe ? "bg-brand-navy text-white" : "hover:bg-zinc-50"}`}>
+              Pipe
+            </Link>
+          </div>
           <Link href={params.vue === "miennes" ? "/affaires" : "/affaires?vue=miennes"} className="btn-secondary">
             {params.vue === "miennes" ? "Toutes les affaires" : "Mes affaires"}
           </Link>
@@ -92,6 +114,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
 
       <form className="card grid grid-cols-2 gap-2 md:grid-cols-7">
         {params.vue && <input type="hidden" name="vue" value={params.vue} />}
+        {pipe && <input type="hidden" name="mode" value="pipe" />}
         <input name="q" defaultValue={params.q} placeholder="Client…" className="input col-span-2 md:col-span-1" />
         <MultiSelect
           key={`pays:${f.pays.join()}`}
@@ -130,7 +153,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
         />
         <div className="flex gap-2">
           <button className="btn flex-1">Filtrer</button>
-          <Link href={params.vue ? `/affaires?vue=${params.vue}` : "/affaires"} className="btn-secondary px-3" title="Effacer les filtres">
+          <Link href={`/affaires?${new URLSearchParams({ ...(params.vue ? { vue: params.vue } : {}), ...(pipe ? { mode: "pipe" } : {}) })}`} className="btn-secondary px-3" title="Effacer les filtres">
             ✕
           </Link>
         </div>
@@ -152,16 +175,33 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
 
       {error && <p className="text-sm text-red-700">Erreur de chargement : {error.message}</p>}
 
+      {pipe ? (
+        <PipelineBoard
+          key={JSON.stringify(params)}
+          stages={f.etape.filter(isStage)}
+          cards={deals.map((d) => ({
+            id: d.id,
+            title: dealTitle(d, d.clients.name),
+            client: d.clients.name,
+            amount: Number(d.quote_amount),
+            stage: d.stage,
+            rep: d.sales_reps?.display_name ?? null,
+            close: d.expected_close_date,
+            country: d.country_code,
+            late: !!d.expected_close_date && d.expected_close_date < today && !["won", "won_pending", "perdu"].includes(d.stage),
+          }))}
+        />
+      ) : (
       <div className="card overflow-x-auto p-0">
         <table className="w-full text-sm">
           <thead className="border-b border-zinc-200 bg-zinc-50 text-left text-xs text-zinc-500">
             <tr>
-              <th className="px-3 py-2">Client</th>
+              <th className="px-3 py-2">Affaire</th>
               <th className="px-3 py-2">Pays</th>
               <th className="px-3 py-2">LoB</th>
               <th className="px-3 py-2">Porteur</th>
               <th className="px-3 py-2">Étape</th>
-              <th className="px-3 py-2 text-right">Devis</th>
+              <th className="px-3 py-2 text-right">Montant</th>
               <th className="px-3 py-2 text-right">Encaissé</th>
               <th className="px-3 py-2">Closing</th>
               <th className="px-3 py-2">Prochaine action</th>
@@ -172,8 +212,9 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
               <tr key={d.id} className="border-b border-zinc-100 hover:bg-zinc-50">
                 <td className="px-3 py-2">
                   <Link href={`/affaires/${d.id}`} className="font-medium hover:underline">
-                    {d.clients.name}
+                    {dealTitle(d, d.clients.name)}
                   </Link>
+                  {d.name && d.name !== d.clients.name && <div className="text-xs text-zinc-500">{d.clients.name}</div>}
                 </td>
                 <td className="px-3 py-2">{d.country_code}</td>
                 <td className="px-3 py-2">{d.business_lines?.name ?? <span className="text-red-600">—</span>}</td>
@@ -201,6 +242,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
           </tbody>
         </table>
       </div>
+      )}
       <p className="text-xs text-zinc-500">{deals.length} affaires</p>
     </div>
   );

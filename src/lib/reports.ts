@@ -1,5 +1,5 @@
 // Calculs des rapports : réalisé vs objectif, couverture forecast / pipe, entonnoir.
-import { quarterRange, type Stage } from "./domain";
+import { LEAD_STAGES, quarterRange, type Stage } from "./domain";
 
 export type ReportDeal = {
   country_code: string;
@@ -66,14 +66,14 @@ export type Coverage = {
   objective: number;
   done: number;
   forecast: number; // réalisé + affaires au stade Forecast
-  pipe: number; // toutes les affaires de la période sauf les perdues (montant des devis)
+  pipe: number; // toutes les affaires de la période sauf les perdues et celles en prospection (montant des devis)
   forecastNeeded: number;
   pipeNeeded: number;
 };
 
 export function coverage(deals: ReportDeal[], objective: number, trimestre: string, settings: Settings): Coverage {
   const { from, to } = quarterRange(trimestre);
-  const scoped = deals.filter((d) => d.stage !== "perdu" && inQuarter(d, trimestre));
+  const scoped = deals.filter((d) => d.stage !== "perdu" && !LEAD_STAGES.includes(d.stage) && inQuarter(d, trimestre));
   const forecastNeeded = objective * Number(settings.forecast_multiple);
   return {
     objective,

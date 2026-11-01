@@ -20,6 +20,7 @@ type Row = {
   next_action: string | null;
   next_action_date: string | null;
   updated_at: string;
+  name: string | null;
   clients: { name: string };
   countries: { name: string };
   business_lines: { name: string } | null;
@@ -61,6 +62,7 @@ export async function GET(request: Request) {
       "Date prochaine action",
       "Trimestre",
       "Dernière modification",
+      "Nom de l'affaire",
     ],
     ...data.map((d) => [
       d.clients.name,
@@ -78,6 +80,7 @@ export async function GET(request: Request) {
       d.next_action_date ?? "",
       d.quarter_label ?? "",
       d.updated_at.slice(0, 10),
+      d.name ?? "",
     ]),
   ];
 
