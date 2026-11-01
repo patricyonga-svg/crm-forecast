@@ -1,4 +1,4 @@
-import { STAGES, type Deal } from "@/lib/domain";
+import { CARDS_STATUS, STAGES, type Deal } from "@/lib/domain";
 
 type Refs = {
   lines: { id: number; name: string }[];
@@ -6,23 +6,41 @@ type Refs = {
 };
 
 /** Champs communs à la création et à la modification d'une affaire. */
-export function DealFields({ refs, deal, country }: { refs: Refs; deal?: Partial<Deal>; country?: string }) {
+export function DealFields({
+  refs,
+  deal,
+  country,
+  showStage = true,
+  commentRequired = false,
+}: {
+  refs: Refs;
+  deal?: Partial<Deal>;
+  country?: string;
+  showStage?: boolean;
+  commentRequired?: boolean;
+}) {
   const reps = country ? refs.reps.filter((r) => !r.country_code || r.country_code === country) : refs.reps;
   return (
     <div className="grid gap-3 md:grid-cols-2">
-      <label className="space-y-1 text-sm">
-        <span className="text-zinc-600">Étape</span>
-        <select name="stage" defaultValue={deal?.stage ?? "opportunite"} className="input">
-          {STAGES.map((s) => (
-            <option key={s.value} value={s.value} title={s.help}>
-              {s.label} : {s.help}
-            </option>
-          ))}
-        </select>
+      <label className="space-y-1 text-sm md:col-span-2">
+        <span className="text-zinc-600">Nom de l&apos;affaire *</span>
+        <input name="name" defaultValue={deal?.name ?? ""} required className="input" placeholder="Ex. Assurance santé du personnel 2027" />
       </label>
+      {showStage && (
+        <label className="space-y-1 text-sm">
+          <span className="text-zinc-600">Étape</span>
+          <select name="stage" defaultValue={deal?.stage ?? "opportunite"} className="input">
+            {STAGES.map((s) => (
+              <option key={s.value} value={s.value} title={s.help}>
+                {s.label} : {s.help}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <label className="space-y-1 text-sm">
-        <span className="text-zinc-600">Montant du devis (XOF)</span>
-        <input name="quote_amount" type="number" min={0} step={1} defaultValue={deal?.quote_amount ?? ""} className="input" required />
+        <span className="text-zinc-600">Montant potentiel (XOF) *</span>
+        <input name="quote_amount" type="number" min={0} step={1} defaultValue={deal?.quote_amount ?? 0} className="input" required />
       </label>
       <label className="space-y-1 text-sm">
         <span className="text-zinc-600">Date de closing prévue</span>
@@ -62,6 +80,21 @@ export function DealFields({ refs, deal, country }: { refs: Refs; deal?: Partial
       <label className="space-y-1 text-sm">
         <span className="text-zinc-600">Date de la prochaine action</span>
         <input name="next_action_date" type="date" defaultValue={deal?.next_action_date ?? ""} className="input" />
+      </label>
+      <label className="space-y-1 text-sm">
+        <span className="text-zinc-600">Cartes</span>
+        <select name="cards_status" defaultValue={deal?.cards_status ?? ""} className="input">
+          <option value="">— (obligatoire pour passer en Won Pending)</option>
+          {CARDS_STATUS.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="space-y-1 text-sm md:col-span-2">
+        <span className="text-zinc-600">Commentaire{commentRequired && " *"}</span>
+        <textarea name="comment" defaultValue={deal?.comment ?? ""} required={commentRequired} rows={2} className="input" />
       </label>
     </div>
   );
