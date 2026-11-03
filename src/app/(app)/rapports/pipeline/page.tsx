@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { QuarterPicker } from "@/components/QuarterPicker";
-import { CountryBadge, CoverageBar, Legend, NeededSwatch, Rate, Swatch } from "@/components/charts";
-import { countryColor, coverage, formatM, groupByCountry, ratio, sumObjectives } from "@/lib/reports";
+import { Avatar, CountryBadge, CoverageBar, Legend, NeededSwatch, StatusPill, Swatch } from "@/components/charts";
+import { coverage, formatM, groupByCountry, ratio, sumObjectives } from "@/lib/reports";
 import { loadQuarter } from "../data";
 
 export default async function PipelineReportPage({ searchParams }: { searchParams: Promise<{ trimestre?: string }> }) {
@@ -23,8 +23,12 @@ export default async function PipelineReportPage({ searchParams }: { searchParam
       ...g,
       rows,
       cov,
+      // Commerciaux avec objectif, du plus grand manque au plus petit ; les autres sont repliés en bas.
+      targeted: rows
+        .filter((r) => !r.noTarget && r.cov.objective > 0)
+        .sort((a, b) => b.cov.forecastNeeded - b.cov.forecast - (a.cov.forecastNeeded - a.cov.forecast)),
+      untargeted: rows.filter((r) => r.noTarget || r.cov.objective === 0),
       forecastScale: Math.max(1, ...rows.flatMap((r) => [r.cov.forecast, r.cov.forecastNeeded])),
-      pipeScale: Math.max(1, ...rows.flatMap((r) => [r.cov.pipe, r.cov.pipeNeeded])),
     };
   });
   const reps = groups.flatMap((g) => g.rows.filter((r) => !r.noTarget && r.cov.objective > 0));
@@ -54,70 +58,100 @@ export default async function PipelineReportPage({ searchParams }: { searchParam
 
       <Legend
         items={[
-          { label: "Réalisé", swatch: <Swatch color="#2a78d6" /> },
-          { label: "Forecast en cours / pipe", swatch: <Swatch color="#a9c4e6" /> },
+          { label: "Réalisé", swatch: <Swatch color="#14213d" /> },
+          { label: "Forecast en cours", swatch: <Swatch color="#b7c3dc" /> },
           { label: "Minimum attendu", swatch: <NeededSwatch /> },
         ]}
       />
 
-      {groups.map((g) => {
-        const c = countryColor(g.code);
-        return (
-          <section key={g.code} className="card space-y-3 overflow-x-auto">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="flex items-center gap-2 text-lg font-bold">
-                <CountryBadge code={g.code} color={c.strong} />
-                {g.name}
-              </h2>
-              <p className="text-sm text-zinc-600">
-                objectif {formatM(g.cov.objective)} · forecast {formatM(g.cov.forecast)} / {formatM(g.cov.forecastNeeded)} ·{" "}
-                <Rate rate={ratio(g.cov.forecast, g.cov.forecastNeeded)} /> · pipe {formatM(g.cov.pipe)} / {formatM(g.cov.pipeNeeded)} ·{" "}
-                <Rate rate={ratio(g.cov.pipe, g.cov.pipeNeeded)} />
-              </p>
+      {groups.map((g) => (
+        <section key={g.code} className="card space-y-3 overflow-x-auto">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="flex items-center gap-2 text-lg font-bold">
+              <CountryBadge code={g.code} />
+              {g.name}
+            </h2>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-zinc-600">
+              <span>
+                forecast {formatM(g.cov.forecast)} sur {formatM(g.cov.forecastNeeded)}
+              </span>
+              <StatusPill rate={ratio(g.cov.forecast, g.cov.forecastNeeded)} kind="target" />
+              <span className="ml-2">
+                pipe {formatM(g.cov.pipe)} sur {formatM(g.cov.pipeNeeded)}
+              </span>
+              <StatusPill rate={ratio(g.cov.pipe, g.cov.pipeNeeded)} kind="cover" />
             </div>
-            <table className="w-full min-w-[720px] text-sm">
-              <thead className="text-xs text-zinc-500">
-                <tr>
-                  <th className="pb-1 text-left font-medium">Commercial</th>
-                  <th className="pb-1 text-right font-medium">Objectif</th>
-                  <th className="pb-1 pl-4 text-left font-medium">Forecast vs minimum</th>
-                  <th className="pb-1 text-right font-medium" />
-                  <th className="pb-1 text-right font-medium">M XOF</th>
-                  <th className="pb-1 pl-4 text-left font-medium">Pipe vs minimum</th>
-                  <th className="pb-1 text-right font-medium" />
-                  <th className="pb-1 text-right font-medium">M XOF</th>
-                </tr>
-              </thead>
-              <tbody>
-                {g.rows.map((r) => (
-                  <tr key={r.key} className={r.noTarget ? "text-zinc-500" : ""}>
-                    <td className="py-1.5 pr-2 font-semibold">{r.name}</td>
-                    <td className="py-1.5 pr-2 text-right tabular-nums">{r.cov.objective ? formatM(r.cov.objective) : "—"}</td>
-                    <td className="w-1/5 py-1.5 pl-4">
-                      <CoverageBar done={r.cov.done} value={r.cov.forecast} needed={r.cov.forecastNeeded} scale={g.forecastScale} strong={c.strong} light={c.light} />
+          </div>
+          <table className="w-full min-w-[640px] text-sm">
+            <thead className="text-xs text-zinc-500">
+              <tr className="border-b border-zinc-100">
+                <th className="pb-1.5 text-left font-medium">Commercial</th>
+                <th className="pb-1.5 pl-4 text-left font-medium">Forecast sur minimum attendu</th>
+                <th className="pb-1.5 pl-4 text-right font-medium">Manque</th>
+                <th className="pb-1.5 pl-6 text-left font-medium">Pipe</th>
+              </tr>
+            </thead>
+            <tbody>
+              {g.targeted.map((r) => {
+                const gap = r.cov.forecastNeeded - r.cov.forecast;
+                return (
+                  <tr key={r.key} className="border-b border-zinc-50 last:border-0">
+                    <td className="py-2 pr-2">
+                      <span className="flex items-center gap-2 font-semibold">
+                        <Avatar name={r.name} />
+                        {r.name}
+                      </span>
                     </td>
-                    <td className="py-1.5 pl-2 text-right">
-                      <Rate rate={ratio(r.cov.forecast, r.cov.forecastNeeded)} />
+                    <td className="w-2/5 py-2 pl-4">
+                      <CoverageBar done={r.cov.done} value={r.cov.forecast} needed={r.cov.forecastNeeded} scale={Math.max(g.forecastScale, 1)} />
+                      <div className="mt-1 text-xs text-zinc-500 tabular-nums">
+                        {formatM(r.cov.forecast)} sur {formatM(r.cov.forecastNeeded)}
+                        {r.cov.done > 0 && ` · dont ${formatM(r.cov.done)} réalisés`}
+                      </div>
                     </td>
-                    <td className="whitespace-nowrap py-1.5 pl-2 text-right text-xs text-zinc-500 tabular-nums">
-                      {formatM(r.cov.forecast).replace(" M", "")}/{formatM(r.cov.forecastNeeded).replace(" M", "")}
+                    <td className="py-2 pl-4 text-right tabular-nums">
+                      {gap > 0 ? <span className="font-bold text-red-700">{formatM(gap)}</span> : <StatusPill rate={1} kind="target" />}
                     </td>
-                    <td className="w-1/5 py-1.5 pl-4">
-                      <CoverageBar value={r.cov.pipe} needed={r.cov.pipeNeeded} scale={g.pipeScale} strong={c.strong} light={c.light} />
-                    </td>
-                    <td className="py-1.5 pl-2 text-right">
-                      <Rate rate={ratio(r.cov.pipe, r.cov.pipeNeeded)} />
-                    </td>
-                    <td className="whitespace-nowrap py-1.5 pl-2 text-right text-xs text-zinc-500 tabular-nums">
-                      {formatM(r.cov.pipe).replace(" M", "")}/{formatM(r.cov.pipeNeeded).replace(" M", "")}
+                    <td className="py-2 pl-6">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusPill rate={ratio(r.cov.pipe, r.cov.pipeNeeded)} kind="cover" />
+                        <span className="text-xs text-zinc-500 tabular-nums">
+                          {formatM(r.cov.pipe)} sur {formatM(r.cov.pipeNeeded)}
+                        </span>
+                      </div>
                     </td>
                   </tr>
+                );
+              })}
+              {g.targeted.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="py-3 text-zinc-500">
+                    Aucun objectif saisi pour ce pays ce trimestre.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+          {g.untargeted.length > 0 && (
+            <details className="text-sm">
+              <summary className="cursor-pointer text-zinc-600">
+                {g.untargeted.length} {g.untargeted.length > 1 ? "commerciaux" : "commercial"} sans objectif ce trimestre (
+                {formatM(g.untargeted.reduce((sum, r) => sum + r.cov.pipe, 0))} de pipe)
+              </summary>
+              <ul className="mt-2 grid gap-1 text-zinc-600 sm:grid-cols-2 lg:grid-cols-3">
+                {g.untargeted.map((r) => (
+                  <li key={r.key} className="flex justify-between gap-3 rounded-md bg-zinc-50 px-3 py-1.5">
+                    <span>{r.name}</span>
+                    <span className="tabular-nums">
+                      forecast {formatM(r.cov.forecast)} · pipe {formatM(r.cov.pipe)}
+                    </span>
+                  </li>
                 ))}
-              </tbody>
-            </table>
-          </section>
-        );
-      })}
+              </ul>
+            </details>
+          )}
+        </section>
+      ))}
 
       <p className="text-xs text-zinc-500">
         Forecast = réalisé + affaires au stade Forecast du trimestre · Pipe = toutes les affaires du trimestre sauf les perdues (Opportunité, À relancer, Forecast, Won Pending, Won) ·

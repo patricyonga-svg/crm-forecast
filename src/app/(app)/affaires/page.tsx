@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { getReferences, getSession } from "@/lib/session";
 import { STAGES, dealTitle, formatDate, formatMoney, isStage, quarterRange, type Deal } from "@/lib/domain";
+import { formatM } from "@/lib/reports";
 import { PipelineBoard } from "@/components/PipelineBoard";
-import { MultiSelect } from "@/components/MultiSelect";
+import { FilterBar } from "@/components/FilterBar";
 import { StageBadge } from "@/components/StageBadge";
 
 type Row = Deal & {
@@ -104,73 +105,40 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
               Pipe
             </Link>
           </div>
-          <Link href={params.vue === "miennes" ? "/affaires" : "/affaires?vue=miennes"} className="btn-secondary">
-            {params.vue === "miennes" ? "Toutes les affaires" : "Mes affaires"}
-          </Link>
-          <Link href="/affaires/nouvelle" className="btn">
-            Nouvelle affaire
-          </Link>
         </div>
       </div>
 
-      <form className="card grid grid-cols-2 gap-2 md:grid-cols-7">
-        {params.vue && <input type="hidden" name="vue" value={params.vue} />}
-        {params.mode && <input type="hidden" name="mode" value={params.mode} />}
-        <input name="q" defaultValue={params.q} placeholder="Client…" className="input col-span-2 md:col-span-1" />
-        <MultiSelect
-          key={`pays:${f.pays.join()}`}
-          name="pays"
-          allLabel="Tous les pays"
-          defaultValue={f.pays}
-          options={refs.countries.map((c) => ({ value: c.code, label: c.name }))}
-        />
-        <MultiSelect
-          key={`etape:${f.etape.join()}`}
-          name="etape"
-          allLabel="Toutes les étapes"
-          defaultValue={f.etape}
-          options={STAGES.map((st) => ({ value: st.value, label: st.label }))}
-        />
-        <MultiSelect
-          key={`lob:${f.lob.join()}`}
-          name="lob"
-          allLabel="Toutes les LoB"
-          defaultValue={f.lob}
-          options={refs.lines.map((l) => ({ value: String(l.id), label: l.name }))}
-        />
-        <MultiSelect
-          key={`porteur:${f.porteur.join()}`}
-          name="porteur"
-          allLabel="Tous les porteurs"
-          defaultValue={f.porteur}
-          options={[{ value: "aucun", label: "Sans porteur" }, ...refs.reps.map((r) => ({ value: String(r.id), label: r.display_name }))]}
-        />
-        <MultiSelect
-          key={`trimestre:${f.trimestre.join()}`}
-          name="trimestre"
-          allLabel="Toutes les dates"
-          defaultValue={f.trimestre}
-          options={[{ value: "sans-date", label: "Sans date de closing" }, ...quarters.map((q) => ({ value: q, label: q.replace("-", " ") }))]}
-        />
-        <div className="flex gap-2">
-          <button className="btn flex-1">Filtrer</button>
-          <Link href={`/affaires?${new URLSearchParams({ ...(params.vue ? { vue: params.vue } : {}), ...(params.mode ? { mode: params.mode } : {}) })}`} className="btn-secondary px-3" title="Effacer les filtres">
-            ✕
-          </Link>
-        </div>
-      </form>
+      <FilterBar
+        filters={[
+          { name: "pays", label: "Pays", options: refs.countries.map((c) => ({ value: c.code, label: c.name })) },
+          { name: "etape", label: "Étape", options: STAGES.map((st) => ({ value: st.value, label: st.label })) },
+          { name: "lob", label: "LoB", options: refs.lines.map((l) => ({ value: String(l.id), label: l.name })) },
+          {
+            name: "porteur",
+            label: "Porteur",
+            options: [{ value: "aucun", label: "Sans porteur" }, ...refs.reps.map((r) => ({ value: String(r.id), label: r.display_name }))],
+          },
+          {
+            name: "trimestre",
+            label: "Date de closing",
+            options: [{ value: "sans-date", label: "Sans date de closing" }, ...quarters.map((q) => ({ value: q, label: q.replace("-", " ") }))],
+          },
+        ]}
+      />
 
-      <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+      <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm text-zinc-500 tabular-nums">
+        <span>
+          <strong className="text-zinc-900">{deals.length}</strong> affaires
+        </span>
         {[
           ["Pipe (devis)", totals.quote],
           ["Forecast", totals.forecast],
           ["Facturé", totals.invoiced],
           ["Encaissé", totals.collected],
         ].map(([label, value]) => (
-          <div key={label} className="card">
-            <div className="text-xs text-zinc-500">{label}</div>
-            <div className="text-lg font-semibold tabular-nums">{formatMoney(value as number)}</div>
-          </div>
+          <span key={label as string}>
+            {label} <strong className="text-zinc-900">{formatM(value as number)}</strong>
+          </span>
         ))}
       </div>
 
@@ -236,8 +204,11 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
             ))}
             {deals.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-3 py-6 text-center text-zinc-500">
-                  Aucune affaire ne correspond.
+                <td colSpan={9} className="px-3 py-10 text-center text-zinc-500">
+                  <p>Aucune affaire ne correspond à ces filtres.</p>
+                  <Link href={params.vue ? `/affaires?vue=${params.vue}` : "/affaires"} className="btn-secondary mt-3">
+                    Effacer les filtres
+                  </Link>
                 </td>
               </tr>
             )}
@@ -245,7 +216,6 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
         </table>
       </div>
       )}
-      <p className="text-xs text-zinc-500">{deals.length} affaires</p>
     </div>
   );
 }

@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { CARDS_STATUS, formatDate, STAGE_ACCENT, STAGES, type CardsStatus, type Contact, type Stage } from "@/lib/domain";
-import { formatM } from "@/lib/reports";
+import { CARDS_STATUS, formatDate, LEAD_STAGES, STAGE_ACCENT, STAGES, type CardsStatus, type Contact, type Stage } from "@/lib/domain";
+import { formatM, initials } from "@/lib/reports";
 import { getBookingData, moveDeal } from "@/app/(app)/affaires/actions";
 import { BookingForm } from "./BookingForm";
 
@@ -25,7 +25,10 @@ type Dialog =
   | { kind: "rdv"; card: BoardCard; data: { contacts: Contact[]; reps: { id: number; display_name: string }[]; defaultRep: number | null } | null }
   | { kind: "cartes"; card: BoardCard };
 
-const money = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
+/** Étapes rangées dans des zones étroites à droite du pipe, dépliables au clic. */
+const TRAY_STAGES: Stage[] = ["a_relancer", "perdu"];
+const DAY = 86_400_000;
+const lateDays = (close: string) => Math.max(1, Math.round((Date.now() - new Date(`${close}T00:00:00`).getTime()) / DAY));
 
 /** Pipe commercial en vignettes : une colonne par étape, glisser-déposer pour changer d'étape. */
 export function PipelineBoard({ cards: initial, stages }: { cards: BoardCard[]; stages?: Stage[] }) {
@@ -36,7 +39,13 @@ export function PipelineBoard({ cards: initial, stages }: { cards: BoardCard[]; 
   const [message, setMessage] = useState<{ text: string; href?: string; ok?: boolean } | null>(null);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [, startTransition] = useTransition();
-  const columns = STAGES.filter((s) => !stages?.length || stages.includes(s.value));
+  // Prospection regroupée en une colonne et étapes « À relancer » / « Perdu » en zones étroites, sauf si on les déplie
+  // ou si un filtre d'étape est actif (on montre alors exactement les étapes choisies).
+  const [leadsOpen, setLeadsOpen] = useState(false);
+  const [openTrays, setOpenTrays] = useState<Stage[]>([]);
+  const filtered = !!stages?.length;
+  const columns = STAGES.filter((s) => !filtered || stages!.includes(s.value));
+  const groupLeads = !filtered && !leadsOpen;
 
   function move(card: BoardCard, stage: Stage, cards?: CardsStatus) {
     setMessage(null);
@@ -83,6 +92,12 @@ export function PipelineBoard({ cards: initial, stages }: { cards: BoardCard[]; 
     }
     move(card, stage);
   }
+
+  const cardProps = {
+    dragging,
+    onCardDragStart: (id: string) => setDragging(id),
+    onCardDragEnd: () => setDragging(null),
+  };
 
   return (
     <div className="space-y-2">
@@ -166,74 +181,200 @@ export function PipelineBoard({ cards: initial, stages }: { cards: BoardCard[]; 
         </div>
       )}
       <div className="-mx-4 overflow-x-auto px-4 pb-2">
-        <div className="flex gap-3">
-          {columns.map((col) => {
-            const list = cards.filter((c) => c.stage === col.value);
-            const total = list.reduce((s, c) => s + c.amount, 0);
-            return (
-              <section
+        <div className="flex gap-2.5">
+          {groupLeads && (
+            <Column
+              title="Prospection"
+              help="À contacter, prise de rendez-vous et CR de rendez-vous"
+              accent={STAGE_ACCENT.a_contacter}
+              cards={cards.filter((c) => LEAD_STAGES.includes(c.stage))}
+              showStage
+              over={over === "a_contacter"}
+              onDragOver={() => {
+                // Déplie la prospection pendant un glisser pour choisir l'étape exacte.
+                if (dragging) setLeadsOpen(true);
+              }}
+              onDrop={() => undefined}
+              action={
+                <button type="button" onClick={() => setLeadsOpen(true)} className="text-xs font-semibold text-brand-blue hover:underline">
+                  Détailler
+                </button>
+              }
+              {...cardProps}
+            />
+          )}
+          {columns
+            .filter((col) => !(groupLeads && LEAD_STAGES.includes(col.value)))
+            .filter((col) => filtered || !TRAY_STAGES.includes(col.value) || openTrays.includes(col.value))
+            .map((col) => (
+              <Column
                 key={col.value}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setOver(col.value);
-                }}
+                title={col.label}
+                help={col.help}
+                accent={STAGE_ACCENT[col.value]}
+                cards={cards.filter((c) => c.stage === col.value)}
+                over={over === col.value}
+                onDragOver={() => setOver(col.value)}
                 onDragLeave={() => setOver((o) => (o === col.value ? null : o))}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  drop(col.value);
-                }}
-                className={`flex w-64 shrink-0 flex-col rounded-xl border bg-zinc-50 transition-colors ${
-                  over === col.value ? "border-brand-blue bg-blue-50" : "border-zinc-200"
-                }`}
-              >
-                <header className="rounded-t-xl border-t-4 bg-white px-3 py-2" style={{ borderTopColor: STAGE_ACCENT[col.value] }}>
-                  <div className="flex items-baseline justify-between gap-2">
-                    <h2 className="text-sm font-bold" title={col.help}>
-                      {col.label}
-                    </h2>
-                    <span className="text-xs text-zinc-500">{list.length}</span>
-                  </div>
-                  <div className="text-xs text-zinc-500">{formatM(total)} XOF</div>
-                </header>
-                <div className="flex max-h-[70vh] min-h-24 flex-col gap-2 overflow-y-auto p-2">
-                  {list.map((c) => (
-                    <article
-                      key={c.id}
-                      draggable
-                      onDragStart={(e) => {
-                        setDragging(c.id);
-                        e.dataTransfer.effectAllowed = "move";
-                      }}
-                      onDragEnd={() => setDragging(null)}
-                      className={`cursor-grab rounded-lg border border-zinc-200 bg-white p-2.5 text-sm shadow-sm hover:border-brand-blue active:cursor-grabbing ${
-                        dragging === c.id ? "opacity-40" : ""
-                      }`}
-                    >
-                      <Link href={`/affaires/${c.id}`} className="block font-semibold leading-snug hover:underline" draggable={false}>
-                        {c.title}
-                      </Link>
-                      {c.title !== c.client && <div className="truncate text-xs text-zinc-600">{c.client}</div>}
-                      <div className="mt-1.5 font-semibold tabular-nums">{money.format(c.amount)} XOF</div>
-                      <div className="mt-1 flex flex-wrap items-center justify-between gap-1 text-xs text-zinc-500">
-                        <span className="truncate">
-                          {c.rep ?? <span className="text-red-600">Sans porteur</span>} · {c.country}
-                        </span>
-                        {c.close && <span className={c.late ? "text-red-700" : ""}>{formatDate(c.close)}</span>}
-                      </div>
-                    </article>
-                  ))}
-                  {list.length === 0 && <p className="px-1 py-4 text-center text-xs text-zinc-400">Déposez une affaire ici</p>}
-                </div>
-              </section>
-            );
-          })}
+                onDrop={() => drop(col.value)}
+                action={
+                  !filtered && LEAD_STAGES[0] === col.value ? (
+                    <button type="button" onClick={() => setLeadsOpen(false)} className="text-xs font-semibold text-brand-blue hover:underline">
+                      Regrouper
+                    </button>
+                  ) : !filtered && TRAY_STAGES.includes(col.value) ? (
+                    <button type="button" onClick={() => setOpenTrays((t) => t.filter((x) => x !== col.value))} className="text-xs font-semibold text-brand-blue hover:underline">
+                      Replier
+                    </button>
+                  ) : undefined
+                }
+                {...cardProps}
+              />
+            ))}
+          {!filtered && TRAY_STAGES.some((t) => !openTrays.includes(t)) && (
+            <div className="flex w-28 shrink-0 flex-col gap-2.5">
+              {TRAY_STAGES.filter((t) => !openTrays.includes(t)).map((t) => {
+                const list = cards.filter((c) => c.stage === t);
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setOpenTrays((o) => [...o, t])}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setOver(t);
+                    }}
+                    onDragLeave={() => setOver((o) => (o === t ? null : o))}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      drop(t);
+                    }}
+                    title={`${STAGES.find((s) => s.value === t)?.help}. Cliquez pour afficher les affaires, ou déposez une vignette ici.`}
+                    className={`rounded-xl border-2 border-dashed px-2 py-4 text-center text-xs transition-colors ${
+                      over === t ? "border-brand-blue bg-blue-50" : "border-zinc-300 text-zinc-500 hover:border-zinc-400"
+                    }`}
+                  >
+                    <div className="font-semibold text-zinc-700">{STAGES.find((s) => s.value === t)?.label}</div>
+                    <div className="mt-1 text-lg font-bold text-zinc-800">{list.length}</div>
+                    <div>{formatM(list.reduce((sum, c) => sum + c.amount, 0))}</div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
       <p className="text-xs text-zinc-500">
-        Glissez une vignette d&apos;une colonne à l&apos;autre pour changer l&apos;étape. Vers « Prise de rendez-vous », le formulaire de rendez-vous
+        Glissez une vignette d&apos;une colonne à l&apos;autre pour changer l&apos;étape. La colonne « Prospection » se déplie en trois étapes pendant le
+        glisser ; « À relancer » et « Perdu » sont les zones à droite. Vers « Prise de rendez-vous », le formulaire de rendez-vous
         s&apos;ouvre ; vers « Won Pending », on vous demande si les cartes sont livrées ; vers « CR de rendez-vous », la fiche de l&apos;affaire s&apos;ouvre
         sur le compte rendu.
       </p>
     </div>
+  );
+}
+
+const STAGE_SHORT: Partial<Record<Stage, string>> = { a_contacter: "À contacter", prise_rdv: "Prise de RDV", cr_rdv: "CR de RDV" };
+
+function Column({
+  title,
+  help,
+  accent,
+  cards,
+  over,
+  showStage,
+  action,
+  dragging,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onCardDragStart,
+  onCardDragEnd,
+}: {
+  title: string;
+  help?: string;
+  accent: string;
+  cards: BoardCard[];
+  over: boolean;
+  showStage?: boolean;
+  action?: React.ReactNode;
+  dragging: string | null;
+  onDragOver: () => void;
+  onDragLeave?: () => void;
+  onDrop: () => void;
+  onCardDragStart: (id: string) => void;
+  onCardDragEnd: () => void;
+}) {
+  const total = cards.reduce((s, c) => s + c.amount, 0);
+  return (
+    <section
+      onDragOver={(e) => {
+        e.preventDefault();
+        onDragOver();
+      }}
+      onDragLeave={onDragLeave}
+      onDrop={(e) => {
+        e.preventDefault();
+        onDrop();
+      }}
+      className={`flex min-w-44 flex-1 basis-0 flex-col rounded-xl border bg-zinc-50 transition-colors ${over ? "border-brand-blue bg-blue-50" : "border-zinc-200"}`}
+    >
+      <header className="rounded-t-xl border-t-4 bg-white px-3 py-2" style={{ borderTopColor: accent }}>
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="text-sm font-bold" title={help}>
+            {title}
+          </h2>
+          <span className="rounded-full bg-zinc-100 px-1.5 text-xs font-semibold text-zinc-600">{cards.length}</span>
+        </div>
+        <div className="flex items-baseline justify-between gap-2">
+          <span className="text-xs font-semibold text-zinc-600 tabular-nums">{formatM(total)} XOF</span>
+          {action}
+        </div>
+      </header>
+      <div className="flex max-h-[70vh] min-h-24 flex-col gap-2 overflow-y-auto p-2">
+        {cards.map((c) => (
+          <article
+            key={c.id}
+            draggable
+            onDragStart={(e) => {
+              onCardDragStart(c.id);
+              e.dataTransfer.effectAllowed = "move";
+            }}
+            onDragEnd={onCardDragEnd}
+            className={`cursor-grab rounded-lg border border-zinc-200 bg-white p-2.5 text-sm shadow-sm hover:border-brand-blue active:cursor-grabbing ${
+              c.late ? "border-l-4 border-l-red-500" : ""
+            } ${dragging === c.id ? "opacity-40" : ""}`}
+          >
+            {showStage && STAGE_SHORT[c.stage] && <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">{STAGE_SHORT[c.stage]}</div>}
+            <Link href={`/affaires/${c.id}`} className="block font-semibold leading-snug hover:underline" draggable={false}>
+              {c.title}
+            </Link>
+            {c.title !== c.client && <div className="truncate text-xs text-zinc-600">{c.client}</div>}
+            <div className="mt-1 text-base font-bold tabular-nums">{formatM(c.amount)}</div>
+            <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-zinc-500">
+              <span className="flex min-w-0 items-center gap-1.5">
+                {c.rep ? (
+                  <span title={c.rep} className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-[#dfe6f3] text-[9px] font-bold text-[#14213d]">
+                    {initials(c.rep)}
+                  </span>
+                ) : (
+                  <span className="text-red-600">Sans porteur</span>
+                )}
+                <span>{c.country}</span>
+              </span>
+              {c.close &&
+                (c.late ? (
+                  <span className="font-semibold text-red-700" title={`Closing prévu le ${formatDate(c.close)}`}>
+                    {lateDays(c.close)} j de retard
+                  </span>
+                ) : (
+                  <span>{formatDate(c.close)}</span>
+                ))}
+            </div>
+          </article>
+        ))}
+        {cards.length === 0 && <p className="px-1 py-4 text-center text-xs text-zinc-400">Déposez une affaire ici</p>}
+      </div>
+    </section>
   );
 }

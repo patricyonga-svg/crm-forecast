@@ -1,47 +1,50 @@
 import Image from "next/image";
 import Link from "next/link";
 import { getSession } from "@/lib/session";
-import { NavDropdown } from "@/components/NavDropdown";
+import { Suspense } from "react";
+import { MainNav } from "@/components/MainNav";
+import { UserMenu } from "@/components/UserMenu";
 import { signOut } from "./actions";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const { profile, user } = await getSession();
+  const { supabase, profile, user } = await getSession();
+  const today = new Date().toISOString().slice(0, 10);
+  // Même règle que la vue « Actions à faire » : action prévue aujourd'hui ou avant, affaire ni gagnée ni perdue.
+  const { count: overdue } = await supabase
+    .from("deals")
+    .select("id", { count: "exact", head: true })
+    .lte("next_action_date", today)
+    .not("stage", "in", "(won,perdu)");
+  const settings = [
+    ...(profile?.role === "admin" || profile?.role === "manager" ? [{ href: "/parametres/objectifs", label: "Objectifs" }] : []),
+    { href: "/parametres/pipeline", label: "Paramètres pipeline" },
+    ...(profile?.role === "admin" ? [{ href: "/utilisateurs", label: "Utilisateurs" }] : []),
+  ];
   return (
     <div className="flex min-h-screen flex-col">
       <header className="bg-brand-navy text-white">
-        <div className="flex flex-wrap items-center gap-x-8 gap-y-2 py-2.5 pl-3 pr-4">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 py-2 pl-3 pr-4">
           <Link href="/affaires" className="flex items-center gap-1.5">
             <Image src="/cerise.png" alt="" width={34} height={34} priority />
             <span className="font-brand text-2xl font-semibold tracking-wide">Cerise</span>
           </Link>
-          <nav className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-white/80">
-            <Link href="/affaires" className="hover:text-white">
-              Affaires
-            </Link>
-            <Link href="/affaires?vue=relances" className="hover:text-white">
-              Actions à faire
-            </Link>
-            <Link href="/rapports" className="hover:text-white">
-              Rapports
-            </Link>
-            <NavDropdown
-              label="Paramètres"
-              items={[
-                ...(profile?.role === "admin" || profile?.role === "manager" ? [{ href: "/parametres/objectifs", label: "Objectifs" }] : []),
-                { href: "/parametres/pipeline", label: "Paramètres pipeline" },
-              ]}
-            />
-            {profile?.role === "admin" && (
-              <Link href="/utilisateurs" className="hover:text-white">
-                Utilisateurs
-              </Link>
-            )}
-          </nav>
-          <div className="ml-auto flex items-center gap-3 text-sm text-white/70">
-            <span>{profile?.full_name ?? user.email}</span>
-            <form action={signOut}>
-              <button className="hover:text-white">Déconnexion</button>
+          <Suspense>
+            <MainNav settings={settings} overdue={overdue ?? 0} />
+          </Suspense>
+          <div className="ml-auto flex items-center gap-2">
+            <form action="/affaires" className="hidden md:block" role="search">
+              <input
+                name="q"
+                type="search"
+                placeholder="Rechercher un client…"
+                aria-label="Rechercher un client"
+                className="w-52 rounded-md border border-white/10 bg-white/10 px-3 py-1.5 text-sm text-white placeholder:text-white/50 focus:border-white/40 focus:bg-white/15 focus:outline-none"
+              />
             </form>
+            <Link href="/affaires/nouvelle" className="rounded-md bg-brand-orange px-3 py-1.5 text-sm font-semibold text-white hover:brightness-110">
+              + Affaire
+            </Link>
+            <UserMenu name={profile?.full_name ?? user.email ?? "Mon compte"} signOut={signOut} />
           </div>
         </div>
       </header>

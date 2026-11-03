@@ -15,13 +15,14 @@ export type Rep = { id: number; display_name: string; country_code: string | nul
 export type RepObjective = { sales_rep_id: number; month: string; amount: number };
 export type Settings = { forecast_multiple: number; pipe_multiple: number };
 
-export const COUNTRY_COLOR: Record<string, { strong: string; light: string }> = {
-  CI: { strong: "#2a78d6", light: "#a9c4e6" },
-  SN: { strong: "#eb6834", light: "#f7c3ac" },
-  CM: { strong: "#1baf7a", light: "#a9e2cd" },
+/**
+ * Couleur des barres par pays : un seul bleu nuit pour tous les pays, afin que la couleur
+ * ne serve qu'à dire si l'on est en avance ou en retard (vert / ambre / rouge).
+ */
+export const countryColor = (code: string): { strong: string; light: string } => {
+  void code;
+  return { strong: "#14213d", light: "#b7c3dc" };
 };
-
-export const countryColor = (code: string) => COUNTRY_COLOR[code] ?? { strong: "#14213d", light: "#c9cfdb" };
 
 export function previousQuarter(value: string): string {
   const [y, q] = value.split("-T").map(Number);
@@ -154,10 +155,26 @@ export function ratio(part: number, total: number): number | null {
   return total > 0 ? part / total : null;
 }
 
-/** Couleur d'un taux d'atteinte, comparé à la part de la période écoulée. */
+export type Status = "ok" | "warn" | "bad";
+
+/** État d'un taux comparé à la part de la période écoulée : atteint, au moins la moitié, ou moins. */
+export function status(rate: number | null, expected = 1): Status | null {
+  if (rate === null) return null;
+  if (rate >= expected) return "ok";
+  if (rate >= expected * 0.5) return "warn";
+  return "bad";
+}
+
+/** Couleur de texte d'un taux d'atteinte, comparé à la part de la période écoulée. */
 export function tone(rate: number | null, expected = 1): string {
-  if (rate === null) return "text-zinc-400";
-  if (rate >= expected) return "text-emerald-700";
-  if (rate >= expected * 0.5) return "text-amber-600";
-  return "text-red-700";
+  const s = status(rate, expected);
+  return s === "ok" ? "text-emerald-700" : s === "warn" ? "text-amber-700" : s === "bad" ? "text-red-700" : "text-zinc-400";
+}
+
+/** Initiales d'un nom (« Marie Tanoh » → « MT », « Awa » → « AW »). */
+export function initials(name: string): string {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return "?";
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
 }
