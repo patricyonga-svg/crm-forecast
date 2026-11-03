@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { QuarterPicker } from "@/components/QuarterPicker";
 import { CountryBadge, Legend, ProgressBar, Rate, Swatch } from "@/components/charts";
-import { countryColor, elapsed, formatM, groupByCountry, monthEnd, ratio, realised, sumObjectives } from "@/lib/reports";
+import { elapsed, formatM, groupByCountry, monthEnd, ratio, realised, sumObjectives } from "@/lib/reports";
 import { loadQuarter, monthLabel, pickMonth } from "../data";
 
 type Search = { trimestre?: string; mois?: string };
@@ -59,20 +59,19 @@ export default async function AchievementsPage({ searchParams }: { searchParams:
 
       <Legend
         items={[
-          { label: "Réalisé (Won Pending + Won)", swatch: <Swatch color="#2a78d6" /> },
-          { label: "Objectif", swatch: <Swatch color="#e4e7ee" /> },
+          { label: "Réalisé (Won Pending + Won)", swatch: <Swatch color="#14213d" /> },
+          { label: "Objectif", swatch: <Swatch color="#e6e8ee" /> },
           { label: "Prorata à date", swatch: <Swatch dashed /> },
         ]}
       />
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid gap-4">
         {groups.map((g) => {
-          const color = countryColor(g.code).strong;
           return (
             <section key={g.code} className="card space-y-3">
               <div>
                 <h2 className="flex items-center gap-2 text-lg font-bold">
-                  <CountryBadge code={g.code} color={color} />
+                  <CountryBadge code={g.code} />
                   {g.name}
                 </h2>
                 <p className="text-sm text-zinc-600">
@@ -88,22 +87,22 @@ export default async function AchievementsPage({ searchParams }: { searchParams:
                     <th className="pb-1 text-left font-medium capitalize">{mName}</th>
                     <th className="pb-1 text-right font-medium">Mois</th>
                     <th className="pb-1 text-right font-medium">Trim.</th>
-                    <th className="pb-1 text-right font-medium">M XOF</th>
+                    <th className="pb-1 text-right font-medium">Réalisé du mois</th>
                   </tr>
                 </thead>
                 <tbody>
                   {g.rows.map((r) => (
                     <tr key={r.key} className={r.noTarget ? "text-zinc-500" : ""}>
                       <td className="py-1.5 pr-2 font-semibold">{r.name}</td>
-                      <td className="w-1/3 py-1.5 pr-2">
-                        <ProgressBar value={r.monthDone} target={r.monthObjective} marker={monthElapsed} color={color} />
+                      <td className="w-2/5 py-1.5 pr-2">
+                        <ProgressBar value={r.monthDone} target={r.monthObjective} marker={monthElapsed} />
                       </td>
                       <td className="py-1.5 pl-1 text-right">
                         {r.noTarget ? "—" : <Rate rate={ratio(r.monthDone, r.monthObjective)} expected={monthElapsed || 1} />}
                       </td>
                       <td className="py-1.5 pl-1 text-right text-zinc-600">{r.noTarget ? "—" : <Rate rate={ratio(r.done, r.objective)} expected={quarterElapsed || 1} />}</td>
                       <td className="whitespace-nowrap py-1.5 pl-2 text-right text-xs text-zinc-500 tabular-nums">
-                        {formatM(r.monthDone).replace(" M", "")}/{formatM(r.monthObjective).replace(" M", "")}
+                        {formatM(r.monthDone)} sur {formatM(r.monthObjective)}
                       </td>
                     </tr>
                   ))}
@@ -115,7 +114,7 @@ export default async function AchievementsPage({ searchParams }: { searchParams:
       </div>
       <p className="text-xs text-zinc-500">
         Réalisé = affaires Won Pending et Won dont la date de closing tombe dans la période · la dernière colonne compare le réalisé du mois à son objectif,
-        en millions de XOF · un taux est vert à partir du prorata de la période écoulée, orange à partir de la moitié du prorata.
+        en millions de XOF · pastille verte à partir du prorata de la période écoulée (trait orange), ambre à partir de la moitié du prorata, rouge en dessous.
       </p>
     </div>
   );

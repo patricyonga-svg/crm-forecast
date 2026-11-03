@@ -46,16 +46,16 @@ export function ObjectivesGrid({ reps, months, initial }: Props) {
         {phasingTotal !== 100 && <span className="text-red-700">Total {phasingTotal} % (au lieu de 100 %)</span>}
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="text-left text-xs text-zinc-500">
-            <tr>
-              <th className="py-1 pr-3 font-medium">Commercial</th>
-              <th className="py-1 pr-3 font-medium">Trimestre</th>
+        <table className="w-full min-w-[520px] text-sm tabular-nums">
+          <thead className="text-xs text-zinc-500">
+            <tr className="border-b border-zinc-200">
+              <th className="py-1.5 pr-3 text-left font-medium">Commercial</th>
               {months.map((m) => (
-                <th key={m.value} className="py-1 pr-3 font-medium capitalize">
+                <th key={m.value} className="w-28 px-2 py-1.5 text-right font-medium capitalize">
                   {m.label}
                 </th>
               ))}
+              <th className="w-32 py-1.5 pl-4 text-right font-medium">Trimestre</th>
             </tr>
           </thead>
           <tbody>
@@ -63,35 +63,49 @@ export function ObjectivesGrid({ reps, months, initial }: Props) {
               const row = values[r.id];
               const total = row.reduce((s, v) => s + num(v), 0);
               return (
-                <tr key={r.id} className="border-t border-zinc-100">
-                  <td className="py-1 pr-3 font-medium">{r.name}</td>
-                  <td className="py-1 pr-3">
-                    <input
-                      key={total}
-                      defaultValue={fmt(total)}
-                      onBlur={(e) => num(e.target.value) !== total && spread(r.id, e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), e.currentTarget.blur())}
-                      className="input min-w-24 max-w-32 text-right font-semibold"
-                      inputMode="decimal"
-                      aria-label={`Objectif trimestriel de ${r.name}`}
-                    />
-                  </td>
+                <tr key={r.id} className="border-b border-zinc-100">
+                  <td className={`py-1.5 pr-3 font-medium ${total ? "" : "text-zinc-400"}`}>{r.name}</td>
                   {months.map((m, i) => (
-                    <td key={m.value} className="py-1 pr-3">
+                    <td key={m.value} className="px-2 py-1.5 text-right">
                       <input
                         name={`obj_${r.id}_${m.value}`}
                         value={row[i]}
+                        placeholder="–"
                         onChange={(e) => setValues((v) => ({ ...v, [r.id]: v[r.id].map((x, j) => (j === i ? e.target.value : x)) }))}
-                        className="input min-w-24 max-w-32 text-right"
+                        className="input w-24 py-1 text-right placeholder:text-zinc-300"
                         inputMode="decimal"
                         aria-label={`Objectif de ${r.name}, ${m.label}`}
                       />
                     </td>
                   ))}
+                  <td className="py-1.5 pl-4 text-right">
+                    <input
+                      key={total}
+                      defaultValue={fmt(total)}
+                      placeholder="–"
+                      onBlur={(e) => num(e.target.value) !== total && spread(r.id, e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), e.currentTarget.blur())}
+                      className="input w-24 border-transparent bg-zinc-50 py-1 text-right font-semibold placeholder:text-zinc-300 hover:border-zinc-300 focus:bg-white"
+                      inputMode="decimal"
+                      title="Saisir un total trimestriel le répartit sur les mois selon le phasage"
+                      aria-label={`Objectif trimestriel de ${r.name}`}
+                    />
+                  </td>
                 </tr>
               );
             })}
           </tbody>
+          <tfoot>
+            <tr className="bg-zinc-50 font-bold">
+              <td className="py-2 pl-2 pr-3">Total</td>
+              {months.map((m, i) => (
+                <td key={m.value} className="px-2 py-2 pr-5 text-right">
+                  {fmt(reps.reduce((s, r) => s + num(values[r.id][i]), 0)) || "0"}
+                </td>
+              ))}
+              <td className="py-2 pl-4 pr-5 text-right">{fmt(reps.reduce((s, r) => s + values[r.id].reduce((t, v) => t + num(v), 0), 0)) || "0"}</td>
+            </tr>
+          </tfoot>
         </table>
       </div>
     </div>

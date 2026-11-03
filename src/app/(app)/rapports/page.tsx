@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { QuarterPicker } from "@/components/QuarterPicker";
-import { CoverageBar, Kpi, Legend, NeededSwatch, ProgressBar, Rate, Swatch } from "@/components/charts";
-import { countryColor, coverage, elapsed, formatM, groupByCountry, monthEnd, ratio, realised, sumObjectives } from "@/lib/reports";
+import { CoverageBar, Kpi, Legend, NeededSwatch, ProgressBar, StatusPill, Swatch } from "@/components/charts";
+import { coverage, elapsed, formatM, groupByCountry, monthEnd, ratio, realised, sumObjectives } from "@/lib/reports";
 import { loadQuarter, monthLabel, pickMonth } from "./data";
 
 type Search = { trimestre?: string; mois?: string };
@@ -44,10 +44,7 @@ export default async function SummaryPage({ searchParams }: { searchParams: Prom
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="eyebrow">Synthèse · {trimestre.replace("-", " ")}</p>
-          <h1 className="text-2xl font-extrabold">
-            {mName[0].toUpperCase() + mName.slice(1)} : {formatM(t.monthDone)} XOF réalisés
-            {t.monthObjective > 0 && `, ${Math.round((t.monthDone / t.monthObjective) * 100)} % de l'objectif du mois`}
-          </h1>
+          <h1 className="text-2xl font-extrabold">Résultats de {mName}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex overflow-hidden rounded-md border border-zinc-300 bg-white text-sm">
@@ -75,31 +72,63 @@ export default async function SummaryPage({ searchParams }: { searchParams: Prom
         </p>
       )}
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <Kpi label={`Réalisé ${mName}`} value={`${formatM(t.monthDone)} XOF`} sub="Won Pending + Won du mois" />
-        <Kpi label={`Objectif ${mName}`} value={`${formatM(t.monthObjective)} XOF`} sub={`${formatM(t.objective)} XOF sur le trimestre`} />
+      <div className="card space-y-3 p-5">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-zinc-500">{mName} · réalisé sur objectif</div>
+            <div className="mt-1 text-4xl font-extrabold tabular-nums">
+              {formatM(t.monthDone)} <span className="text-xl font-semibold text-zinc-500">/ {formatM(t.monthObjective)} XOF</span>
+            </div>
+          </div>
+          <StatusPill rate={ratio(t.monthDone, t.monthObjective)} expected={monthElapsed || 1} />
+        </div>
+        <ProgressBar value={t.monthDone} target={t.monthObjective} marker={monthElapsed} thick />
+        <p className="text-sm text-zinc-600">
+          {t.monthObjective > 0 ? `${Math.round((t.monthDone / t.monthObjective) * 100)} % de l'objectif atteint` : "Pas d'objectif ce mois-ci"}
+          {monthElapsed > 0 && monthElapsed < 1 && t.monthObjective > 0 && (
+            <>
+              {" "}
+              · à cette date, on devrait être à {Math.round(monthElapsed * 100)} % (trait orange)
+            </>
+          )}
+          {" "}· Won Pending + Won du mois
+        </p>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-3">
         <Kpi
-          label={`Atteinte ${mName}`}
-          value={<Rate rate={ratio(t.monthDone, t.monthObjective)} expected={monthElapsed || 1} />}
-          sub={monthElapsed > 0 && monthElapsed < 1 ? `${Math.round(monthElapsed * 100)} % du mois écoulé` : undefined}
+          label="Réalisé trimestre"
+          value={
+            <>
+              {formatM(t.done)} <span className="text-base font-semibold text-zinc-500">/ {formatM(t.objective)}</span>
+            </>
+          }
+          sub={
+            <span className="flex flex-wrap items-center gap-2">
+              <StatusPill rate={ratio(t.done, t.objective)} expected={quarterElapsed || 1} />
+              reste {formatM(Math.max(t.objective - t.done, 0))} XOF
+            </span>
+          }
         />
         <Kpi
-          label="Atteinte trimestre"
-          value={<Rate rate={ratio(t.done, t.objective)} expected={quarterElapsed || 1} />}
-          sub={`reste ${formatM(Math.max(t.objective - t.done, 0))} XOF à réaliser`}
+          label="Forecast trimestre"
+          value={`${formatM(t.forecast)} XOF`}
+          sub={
+            <span className="flex flex-wrap items-center gap-2">
+              <StatusPill rate={ratio(t.forecast, t.forecastNeeded)} kind="cover" />
+              {forecastGap > 0 ? `il manque ${formatM(forecastGap)} XOF` : `minimum ${formatM(t.forecastNeeded)} XOF`}
+            </span>
+          }
         />
-        <Kpi label="Forecast trimestre" value={`${formatM(t.forecast)} XOF`} sub={`minimum attendu ${formatM(t.forecastNeeded)} XOF`} />
         <Kpi
-          label="Forecast manquant"
-          value={`${formatM(forecastGap)} XOF`}
-          valueClass={forecastGap > 0 ? "text-red-700" : "text-emerald-700"}
-          sub={`objectif × ${settings.forecast_multiple.toLocaleString("fr-FR")}`}
-        />
-        <Kpi label="Pipe trimestre" value={`${formatM(t.pipe)} XOF`} sub={`minimum attendu ${formatM(t.pipeNeeded)} XOF`} />
-        <Kpi
-          label="Couverture du pipe"
-          value={<Rate rate={ratio(t.pipe, t.pipeNeeded)} />}
-          sub={`forecast minimal × ${settings.pipe_multiple.toLocaleString("fr-FR")}`}
+          label="Pipe trimestre"
+          value={`${formatM(t.pipe)} XOF`}
+          sub={
+            <span className="flex flex-wrap items-center gap-2">
+              <StatusPill rate={ratio(t.pipe, t.pipeNeeded)} kind="cover" />
+              minimum {formatM(t.pipeNeeded)} XOF (forecast × {settings.pipe_multiple.toLocaleString("fr-FR")})
+            </span>
+          }
         />
       </div>
 
@@ -108,21 +137,24 @@ export default async function SummaryPage({ searchParams }: { searchParams: Prom
           <p className="eyebrow">Résultat de {mName} par pays</p>
           <Legend
             items={[
-              { label: `Objectif ${mName}`, swatch: <Swatch color="#e4e7ee" /> },
-              { label: "Réalisé", swatch: <Swatch color="#2a78d6" /> },
+              { label: `Objectif ${mName}`, swatch: <Swatch color="#e6e8ee" /> },
+              { label: "Réalisé", swatch: <Swatch color="#14213d" /> },
               ...(monthElapsed > 0 && monthElapsed < 1 ? [{ label: "Prorata à date", swatch: <Swatch dashed /> }] : []),
             ]}
           />
         </div>
         <div className="card divide-y divide-zinc-100">
           {groups.map((g) => (
-            <div key={g.code} className="grid items-center gap-3 py-3 md:grid-cols-[180px_1fr_70px_220px]">
+            <div key={g.code} className="grid items-center gap-3 py-3 md:grid-cols-[180px_1fr_190px_200px]">
               <div>
                 <div className="font-bold">{g.name}</div>
                 <div className="text-xs text-zinc-500">objectif trimestre {formatM(g.cov.objective)} XOF</div>
               </div>
-              <ProgressBar value={g.monthDone} target={g.monthObjective} marker={monthElapsed} color={countryColor(g.code).strong} />
-              <Rate rate={ratio(g.monthDone, g.monthObjective)} expected={monthElapsed || 1} className="text-xl" />
+              <ProgressBar value={g.monthDone} target={g.monthObjective} marker={monthElapsed} />
+              <div className="flex items-center gap-2">
+                <span className="w-14 whitespace-nowrap text-right font-semibold tabular-nums">{g.monthObjective > 0 ? `${Math.round((g.monthDone / g.monthObjective) * 100)} %` : "—"}</span>
+                <StatusPill rate={ratio(g.monthDone, g.monthObjective)} expected={monthElapsed || 1} />
+              </div>
               <div className="text-sm md:text-right">
                 <div className="font-semibold">{formatM(g.monthDone)} XOF réalisés</div>
                 <div className="text-zinc-500">
@@ -139,15 +171,14 @@ export default async function SummaryPage({ searchParams }: { searchParams: Prom
           <p className="eyebrow">Couverture de l&apos;objectif du trimestre par pays</p>
           <Legend
             items={[
-              { label: "Réalisé", swatch: <Swatch color="#2a78d6" /> },
-              { label: "Forecast / pipe", swatch: <Swatch color="#a9c4e6" /> },
+              { label: "Réalisé", swatch: <Swatch color="#14213d" /> },
+              { label: "Forecast / pipe", swatch: <Swatch color="#b7c3dc" /> },
               { label: "Minimum attendu", swatch: <NeededSwatch /> },
             ]}
           />
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           {groups.map((g) => {
-            const c = countryColor(g.code);
             const fGap = g.cov.forecast - g.cov.forecastNeeded;
             const pGap = g.cov.pipe - g.cov.pipeNeeded;
             return (
@@ -161,7 +192,7 @@ export default async function SummaryPage({ searchParams }: { searchParams: Prom
                     <span>Forecast {formatM(g.cov.forecast)}</span>
                     <span className="text-zinc-500">min. {formatM(g.cov.forecastNeeded)}</span>
                   </div>
-                  <CoverageBar done={g.cov.done} value={g.cov.forecast} needed={g.cov.forecastNeeded} scale={scale} strong={c.strong} light={c.light} />
+                  <CoverageBar done={g.cov.done} value={g.cov.forecast} needed={g.cov.forecastNeeded} scale={scale} />
                   <Gap value={fGap} hasTarget={g.cov.objective > 0} />
                 </div>
                 <div className="space-y-1">
@@ -169,7 +200,7 @@ export default async function SummaryPage({ searchParams }: { searchParams: Prom
                     <span>Pipe {formatM(g.cov.pipe)}</span>
                     <span className="text-zinc-500">min. {formatM(g.cov.pipeNeeded)}</span>
                   </div>
-                  <CoverageBar value={g.cov.pipe} needed={g.cov.pipeNeeded} scale={scale} strong={c.strong} light={c.light} />
+                  <CoverageBar value={g.cov.pipe} needed={g.cov.pipeNeeded} scale={scale} />
                   <Gap value={pGap} hasTarget={g.cov.objective > 0} />
                 </div>
               </div>
