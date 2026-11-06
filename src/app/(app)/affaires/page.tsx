@@ -68,7 +68,9 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
   const totals = deals.reduce(
     (t, d) => ({
       quote: t.quote + Number(d.quote_amount),
-      forecast: t.forecast + Number(d.forecast_amount),
+      // Sur cet écran, « Forecast » = affaires à l'étape Forecast uniquement, comme la colonne du pipe
+      // (Won Pending et Won sont comptés dans « Facturé »).
+      forecast: t.forecast + (d.stage === "forecast" ? Number(d.quote_amount) : 0),
       invoiced: t.invoiced + Number(d.invoiced_amount),
       collected: t.collected + Number(d.collected_amount),
     }),
