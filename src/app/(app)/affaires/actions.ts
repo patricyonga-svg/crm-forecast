@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { type Contact, contactName, formatDateTime, isCardsStatus, isStage, STAGE_LABEL, dealTitle, type Stage } from "@/lib/domain";
+import { type Contact, contactName, formatDateTime, isCardsStatus, isStage, QUOTE_REQUIRED_STAGES, STAGE_LABEL, dealTitle, type Stage } from "@/lib/domain";
 import { calendarInvite, emailConfigured, escapeHtml, googleCalendarLink, sendMail } from "@/lib/email";
 
 export type FormState = { error?: string; ok?: string };
@@ -70,10 +70,32 @@ function dealFields(form: FormData) {
     next_action: text(form, "next_action"),
     next_action_date: text(form, "next_action_date"),
     cards_status: isCardsStatus(text(form, "cards_status")) ? text(form, "cards_status") : null,
+    sdr_id: int(form, "sdr_id"),
+    expected_payment_date: text(form, "expected_payment_date"),
+    // Devis : seulement quand un nouveau fichier vient d'être envoyé (sinon on garde celui déjà joint).
+    ...quoteFields(form),
   };
 }
 
+/** Chemin et nom du devis envoyé depuis le formulaire (fichier déjà déposé dans l'espace « devis »). */
+function quoteFields(form: FormData): { quote_file_path?: string; quote_file_name?: string } {
+  const path = text(form, "quote_file_path");
+  if (!path || !/^[\w-]+\/\d+-[\w.-]+$/.test(path)) return {};
+  return { quote_file_path: path, quote_file_name: text(form, "quote_file_name") ?? path.split("/").pop()! };
+}
+
 const CARDS_REQUIRED = "Pour passer en « Won Pending », indiquez si les cartes sont livrées, non livrées ou désactivées.";
+const PAYMENT_DATE_REQUIRED = "Pour passer en « Won Pending », la date prévisionnelle d'encaissement est obligatoire.";
+const quoteRequired = (stage: Stage) => `Pour passer en « ${STAGE_LABEL[stage]} », joignez le devis.`;
+
+/** Ce qui manque pour passer à une étape de vente : devis, cartes, date prévisionnelle d'encaissement. */
+function salesStageProblem(stage: Stage, d: { quote_file_path?: string | null; cards_status?: string | null; expected_payment_date?: string | null }): string | null {
+  const missing: string[] = [];
+  if (QUOTE_REQUIRED_STAGES.includes(stage) && !d.quote_file_path) missing.push(quoteRequired(stage));
+  if (stage === "won_pending" && !d.cards_status) missing.push(CARDS_REQUIRED);
+  if (stage === "won_pending" && !d.expected_payment_date) missing.push(PAYMENT_DATE_REQUIRED);
+  return missing.length ? missing.join(" ") : null;
+}
 
 const fail = (e: unknown): FormState => {
   // redirect() lève une exception spéciale qu'il faut laisser passer.
@@ -96,7 +118,8 @@ export async function createDeal(_prev: FormState, form: FormData): Promise<Form
     if (!country || !clientName) throw new Error("L'entreprise et le pays sont obligatoires.");
     const sector = text(form, "sector");
     const contact = contactFields(form, "contact_");
-    if (fields.stage === "won_pending" && !fields.cards_status) throw new Error(CARDS_REQUIRED);
+    const salesProblem = salesStageProblem(fields.stage, fields);
+    if (salesProblem) throw new Error(salesProblem);
     // Réutilise l'entreprise existante du même pays plutôt que de créer un doublon, et complète ce qui manque.
     const { data: existing } = await supabase
       .from("clients")
@@ -154,11 +177,20 @@ export async function createDeal(_prev: FormState, form: FormData): Promise<Form
   redirect(target);
 }
 
-async function stageProblem(supabase: Supabase, dealId: string, stage: Stage, cardsStatus?: string | null): Promise<string | null> {
-  if (stage === "won_pending") {
-    if (cardsStatus) return null;
-    const { data } = await supabase.from("deals").select("cards_status").eq("id", dealId).single<{ cards_status: string | null }>();
-    return data?.cards_status ? null : CARDS_REQUIRED;
+type SalesInput = { quote_file_path?: string | null; cards_status?: string | null; expected_payment_date?: string | null };
+
+async function stageProblem(supabase: Supabase, dealId: string, stage: Stage, input: SalesInput = {}): Promise<string | null> {
+  if (QUOTE_REQUIRED_STAGES.includes(stage)) {
+    const { data } = await supabase
+      .from("deals")
+      .select("quote_file_path, cards_status, expected_payment_date")
+      .eq("id", dealId)
+      .single<{ quote_file_path: string | null; cards_status: string | null; expected_payment_date: string | null }>();
+    return salesStageProblem(stage, {
+      quote_file_path: input.quote_file_path || data?.quote_file_path,
+      cards_status: input.cards_status || data?.cards_status,
+      expected_payment_date: input.expected_payment_date || data?.expected_payment_date,
+    });
   }
   if (stage !== "a_contacter") return null;
   const { data: deal } = await supabase.from("deals").select("comment, clients(sector)").eq("id", dealId).single<{ comment: string | null; clients: { sector: string | null } }>();
@@ -180,7 +212,7 @@ export async function updateDeal(id: string, _prev: FormState, form: FormData): 
       patch = { ...fields, stage: current.stage };
       target = `/affaires/${id}?action=${FORM_FOR_STAGE[fields.stage]}#${FORM_FOR_STAGE[fields.stage]}`;
     } else if (changing) {
-      const problem = await stageProblem(supabase, id, fields.stage, fields.cards_status);
+      const problem = await stageProblem(supabase, id, fields.stage, fields);
       if (problem) {
         // Le reste est enregistré quand même pour que la saisie ne soit pas perdue.
         await supabase.from("deals").update({ ...fields, stage: current.stage }).eq("id", id);
@@ -200,19 +232,25 @@ export async function updateDeal(id: string, _prev: FormState, form: FormData): 
   return { ok: "Enregistré." };
 }
 
+export type MoveExtra = { cards?: string; paymentDate?: string; quotePath?: string; quoteName?: string };
+
 /** Glisser-déposer dans le pipe. Renvoie l'adresse du formulaire à ouvrir pour les étapes qui en ont un. */
-export async function moveDeal(id: string, stage: string, cardsStatus?: string): Promise<{ error?: string; redirectTo?: string }> {
+export async function moveDeal(id: string, stage: string, extra: MoveExtra = {}): Promise<{ error?: string; redirectTo?: string }> {
   if (!isStage(stage)) return { error: "Étape invalide." };
   if (FORM_FOR_STAGE[stage]) return { redirectTo: `/affaires/${id}?action=${FORM_FOR_STAGE[stage]}#${FORM_FOR_STAGE[stage]}` };
-  const cards = isCardsStatus(cardsStatus) ? cardsStatus : null;
+  const form = new FormData();
+  if (extra.quotePath) form.set("quote_file_path", extra.quotePath);
+  if (extra.quoteName) form.set("quote_file_name", extra.quoteName);
+  const patch: Record<string, unknown> = {
+    stage,
+    ...(isCardsStatus(extra.cards) ? { cards_status: extra.cards } : {}),
+    ...(extra.paymentDate && /^\d{4}-\d{2}-\d{2}$/.test(extra.paymentDate) ? { expected_payment_date: extra.paymentDate } : {}),
+    ...quoteFields(form),
+  };
   const supabase = await createClient();
-  const problem = await stageProblem(supabase, id, stage, cards);
+  const problem = await stageProblem(supabase, id, stage, patch as SalesInput);
   if (problem) return { error: problem, redirectTo: `/affaires/${id}` };
-  const { data, error } = await supabase
-    .from("deals")
-    .update(cards ? { stage, cards_status: cards } : { stage })
-    .eq("id", id)
-    .select("id");
+  const { data, error } = await supabase.from("deals").update(patch).eq("id", id).select("id");
   if (error) return { error: error.message };
   if (!data?.length) return { error: "Vous ne pouvez pas modifier cette affaire (réservé à son porteur, au manager du pays et aux administrateurs)." };
   revalidatePath("/affaires");
@@ -333,6 +371,13 @@ export async function bookAppointment(dealId: string, _prev: FormState, form: Fo
       .single();
     if (error) throw new Error(error.message);
 
+    // Rendez-vous pris par un SDR sur une affaire sans SDR : il en devient le SDR.
+    const { data: booker } = await supabase.from("profiles").select("role").eq("id", user.id).single<{ role: string }>();
+    if (booker?.role === "sdr") {
+      const { data: mine } = await supabase.from("sales_reps").select("id").eq("profile_id", user.id).limit(1);
+      if (mine?.[0]) await supabase.from("deals").update({ sdr_id: mine[0].id }).eq("id", dealId).is("sdr_id", null);
+    }
+
     // Glissé vers « Prise de rendez-vous » depuis une autre étape que « À contacter » : on tente aussi le changement d'étape.
     if (deal.stage !== "prise_rdv" && deal.stage !== "a_contacter" && text(form, "move") === "1") {
       await supabase.from("deals").update({ stage: "prise_rdv" }).eq("id", dealId);
@@ -440,6 +485,8 @@ export async function reportAppointment(dealId: string, appointmentId: string | 
     const { data, error } = await supabase.from("appointments").update(report).eq("id", id).select("id");
     if (error) throw new Error(error.message);
     if (!data?.length) throw new Error("Vous ne pouvez pas saisir le compte rendu de ce rendez-vous.");
+    // Un compte rendu vaut rendez-vous effectué.
+    await supabase.from("appointments").update({ done_at: report.reported_at, done_by: user.id }).eq("id", id).is("done_at", null);
 
     const yn = (b: boolean | null) => (b ? "oui" : "non");
     await supabase.from("activities").insert({
@@ -459,6 +506,37 @@ export async function reportAppointment(dealId: string, appointmentId: string | 
     revalidatePath(`/affaires/${dealId}`);
     revalidatePath("/affaires");
     return { ok: message };
+  } catch (e) {
+    return fail(e);
+  }
+}
+
+/** Rendez-vous marqué comme effectué, avec son résultat (obligatoire). */
+export async function markAppointmentDone(dealId: string, appointmentId: string, _prev: FormState, form: FormData): Promise<FormState> {
+  try {
+    const outcome = text(form, "outcome");
+    if (!outcome) throw new Error("Indiquez le résultat (outcome) du rendez-vous.");
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("Session expirée, reconnectez-vous.");
+    const { data, error } = await supabase
+      .from("appointments")
+      .update({ done_at: new Date().toISOString(), done_by: user.id, outcome })
+      .eq("id", appointmentId)
+      .select("starts_at, sales_rep_id, sales_reps(display_name)")
+      .returns<{ starts_at: string; sales_rep_id: number; sales_reps: { display_name: string } | null }[]>();
+    if (error) throw new Error(error.message);
+    if (!data?.length) throw new Error("Vous ne pouvez pas modifier ce rendez-vous (réservé au commercial concerné, à celui qui l'a pris et à ceux qui gèrent l'affaire).");
+    await supabase.from("activities").insert({
+      deal_id: dealId,
+      kind: "rdv",
+      body: `Rendez-vous effectué (${data[0].sales_reps?.display_name ?? "commercial"}, ${data[0].starts_at.slice(0, 10)}). Résultat : ${outcome}`,
+      author_id: user.id,
+    });
+    revalidatePath(`/affaires/${dealId}`);
+    return { ok: "Rendez-vous marqué comme effectué." };
   } catch (e) {
     return fail(e);
   }

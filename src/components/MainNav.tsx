@@ -13,7 +13,10 @@ export function MainNav({ settings, overdue }: { settings: { href: string; label
   const items: Item[] = [
     { href: "/affaires", label: "Affaires" },
     { href: "/affaires?vue=relances", label: "Actions à faire", badge: overdue },
-    { href: "/rapports", label: "Rapports" },
+  ];
+  const reports = [
+    { href: "/rapports", label: "Rapport AE" },
+    { href: "/rapports/sdr", label: "Rapport SDR" },
   ];
   const isActive = (href: string) => {
     if (href === "/affaires?vue=relances") return pathname === "/affaires" && vue === "relances";
@@ -39,6 +42,9 @@ export function MainNav({ settings, overdue }: { settings: { href: string; label
           )}
         </Link>
       ))}
+      <div className={`rounded-md px-2.5 py-1.5 ${pathname.startsWith("/rapports") ? "bg-white/15 font-semibold text-white" : "hover:bg-white/5"}`}>
+        <NavDropdown label="Rapports" items={reports} />
+      </div>
       {settings.length > 0 && (
         <div className={`rounded-md px-2.5 py-1.5 ${settingsActive ? "bg-white/15 font-semibold text-white" : "hover:bg-white/5"}`}>
           <NavDropdown label="Paramètres" items={settings} />

@@ -17,6 +17,7 @@ export function NewDealForm({
   clients,
   defaultCountry,
   defaultRep,
+  defaultSdr,
   defaultStage,
 }: {
   action: (prev: State, form: FormData) => Promise<State>;
@@ -24,6 +25,7 @@ export function NewDealForm({
   clients: KnownClient[];
   defaultCountry?: string | null;
   defaultRep?: number | null;
+  defaultSdr?: number | null;
   defaultStage: Stage;
 }) {
   const [state, formAction] = useActionState(action, {});
@@ -128,7 +130,7 @@ export function NewDealForm({
 
       <div className="card space-y-3">
         <h2 className="font-medium">Affaire</h2>
-        <DealFields refs={refs} country={country || undefined} deal={{ sales_rep_id: defaultRep ?? null }} showStage={false} commentRequired={prospect} />
+        <DealFields refs={refs} country={country || undefined} deal={{ sales_rep_id: defaultRep ?? null, sdr_id: defaultSdr ?? null }} showStage={false} commentRequired={prospect} />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

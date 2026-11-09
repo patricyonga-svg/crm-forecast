@@ -148,3 +148,13 @@ export const Swatch = ({ color, dashed }: { color?: string; dashed?: boolean }) 
   dashed ? <span className="inline-block h-3 w-0.5 rounded" style={{ background: PRORATA_COLOR }} /> : <span className="inline-block h-3 w-3 rounded-sm" style={{ background: color }} />;
 
 export const NeededSwatch = () => <span className="inline-block h-3 w-0.5 rounded" style={{ background: PRORATA_COLOR }} />;
+
+/** Étiquette « Encaissement en retard » des affaires Won Pending, dans le style des états des rapports. */
+export function LateCollectionPill({ title }: { title?: string }) {
+  return (
+    <span title={title} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${PILL.bad}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${DOT.bad}`} aria-hidden />
+      Encaissement en retard
+    </span>
+  );
+}

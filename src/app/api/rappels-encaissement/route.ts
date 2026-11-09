@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
   const { data, error } = await supabase
     .from("deal_amounts")
-    .select("id, name, stage, cards_status, quote_amount, collected_amount, sales_rep_id, clients(name), sales_reps(display_name, email, profiles(email))")
+    .select("id, name, stage, cards_status, quote_amount, collected_amount, sales_rep_id, clients(name), sales_reps!sales_rep_id(display_name, email, profiles(email))")
     .eq("stage", "won_pending")
     .eq("cards_status", "livrees")
     .returns<Row[]>();

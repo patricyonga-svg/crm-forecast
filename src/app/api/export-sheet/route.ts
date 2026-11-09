@@ -36,7 +36,7 @@ export async function GET(request: Request) {
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
   const { data, error } = await supabase
     .from("deal_amounts")
-    .select("*, clients(name), countries(name), business_lines(name), sales_reps(display_name)")
+    .select("*, clients(name), countries(name), business_lines(name), sales_reps!sales_rep_id(display_name)")
     .order("country_code")
     .returns<Row[]>();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

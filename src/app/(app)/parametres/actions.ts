@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { parseObjective } from "@/lib/reports";
+import { parseCount } from "@/lib/sdr";
 
 export async function saveObjectives(form: FormData) {
   const supabase = await createClient();
@@ -54,5 +55,25 @@ export async function savePipelineSettings(form: FormData) {
     .eq("id", true);
   if (error) throw new Error(error.message);
   revalidatePath("/parametres/pipeline");
+  revalidatePath("/rapports", "layout");
+}
+
+/** Objectifs de prospection des SDR : champs « sdr_<commercial>_<mois>_new » et « sdr_<commercial>_<mois>_qual ». */
+export async function saveSdrObjectives(form: FormData) {
+  const supabase = await createClient();
+  const rows = new Map<string, { sales_rep_id: number; month: string; new_leads: number; qualified_leads: number }>();
+  for (const k of form.keys()) {
+    const m = /^sdr_(\d+)_(\d{4}-\d{2}-01)_(new|qual)$/.exec(k);
+    if (!m) continue;
+    const key = `${m[1]}_${m[2]}`;
+    const row = rows.get(key) ?? { sales_rep_id: Number(m[1]), month: m[2], new_leads: 0, qualified_leads: 0 };
+    row[m[3] === "new" ? "new_leads" : "qualified_leads"] = parseCount(String(form.get(k) ?? ""));
+    rows.set(key, row);
+  }
+  if (rows.size) {
+    const { error } = await supabase.from("sdr_objectives").upsert([...rows.values()]);
+    if (error) throw new Error(error.message);
+  }
+  revalidatePath("/parametres/objectifs-sdr");
   revalidatePath("/rapports", "layout");
 }

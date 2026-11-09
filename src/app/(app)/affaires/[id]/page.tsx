@@ -8,6 +8,7 @@ import {
   formatDate,
   formatDateTime,
   formatMoney,
+  lateCollection,
   needsCollectionReminder,
   SECTORS,
   STAGE_LABEL,
@@ -19,6 +20,7 @@ import {
   type Stage,
 } from "@/lib/domain";
 import { StageBadge } from "@/components/StageBadge";
+import { LateCollectionPill } from "@/components/charts";
 import { DealFields } from "@/components/DealFields";
 import { ActionForm } from "@/components/ActionForm";
 import { ContactFields } from "@/components/ContactFields";
@@ -30,6 +32,7 @@ import {
   addContact,
   addPayment,
   cancelAppointment,
+  markAppointmentDone,
   deletePayment,
   linkContact,
   reportAppointment,
@@ -89,10 +92,12 @@ export default async function DealPage({ params, searchParams }: { params: Promi
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-xl font-semibold">{title}</h1>
           <StageBadge stage={deal.stage} />
+          {lateCollection(deal) && <LateCollectionPill />}
         </div>
         <p className="text-sm text-zinc-500">
           {client.name}
           {client.sector && ` · ${client.sector}`} · {country?.name}
+          {deal.sdr_id && ` · SDR : ${repName.get(deal.sdr_id) ?? "?"}`}
         </p>
       </div>
 
@@ -157,8 +162,10 @@ export default async function DealPage({ params, searchParams }: { params: Promi
                         {met && ` avec ${contactName(met)}`}
                         {a.location && ` · ${a.location}`}
                       </div>
-                      {a.reported_at ? (
-                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800">Compte rendu fait</span>
+                      {a.reported_at || a.done_at ? (
+                        <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-800">
+                          {a.reported_at ? "Effectué · compte rendu fait" : "Effectué"}
+                        </span>
                       ) : (
                         <form action={cancelAppointment.bind(null, deal.id, a.id)}>
                           <button className="text-xs text-red-700 hover:underline">Annuler le rendez-vous</button>
@@ -170,6 +177,23 @@ export default async function DealPage({ params, searchParams }: { params: Promi
                       {a.email_status && ` · email : ${a.email_status === "envoye" ? "envoyé" : a.email_status === "non_configure" ? "service d'envoi non configuré" : a.email_status}`}
                     </div>
                     {a.notes && <p className="mt-1 whitespace-pre-line">{a.notes}</p>}
+                    {a.outcome && (
+                      <p className="mt-2 rounded-md bg-emerald-50/60 p-2">
+                        <span className="font-semibold">Résultat du rendez-vous : </span>
+                        <span className="whitespace-pre-line">{a.outcome}</span>
+                      </p>
+                    )}
+                    {!a.done_at && !a.reported_at && (
+                      <details className="mt-2">
+                        <summary className="cursor-pointer text-sm font-semibold text-brand-blue">Marquer comme effectué</summary>
+                        <ActionForm action={markAppointmentDone.bind(null, deal.id, a.id)} className="mt-2 space-y-2" submitLabel="Marquer comme effectué">
+                          <label className="block space-y-1 text-sm">
+                            <span className="text-zinc-600">Résultat (outcome) du rendez-vous *</span>
+                            <textarea name="outcome" required rows={3} className="input" placeholder="Ce qui a été décidé, prochaine étape…" />
+                          </label>
+                        </ActionForm>
+                      </details>
+                    )}
                     {a.reported_at ? (
                       <p className="mt-2 rounded-md bg-zinc-50 p-2">
                         Décideur : {yn(a.report_decision_maker)} · Besoin : {yn(a.report_need)} · Budget : {yn(a.report_budget)}
@@ -349,7 +373,7 @@ export default async function DealPage({ params, searchParams }: { params: Promi
               {(audit.data ?? []).map((a) => (
                 <li key={a.id}>
                   <span className="text-zinc-500">{new Date(a.at).toLocaleString("fr-FR")}</span> · {a.actor ? names.get(a.actor) ?? "?" : "Import"}
-                  <div>{describeChange(a)}</div>
+                  <div>{describeChange(a, repName)}</div>
                 </li>
               ))}
             </ul>
@@ -464,15 +488,19 @@ const FIELD_LABEL: Record<string, string> = {
   next_action_date: "Date de prochaine action",
   comment: "Commentaire",
   cards_status: "Cartes",
+  sdr_id: "SDR",
+  expected_payment_date: "Date prévisionnelle d'encaissement",
+  quote_file_name: "Devis",
 };
 
-function describeChange(a: AuditRow): string {
+function describeChange(a: AuditRow, repName: Map<number, string>): string {
   if (!a.old_data) return "Création";
   if (!a.new_data) return "Suppression";
   const changes = Object.keys(FIELD_LABEL)
     .filter((k) => JSON.stringify(a.old_data![k] ?? null) !== JSON.stringify(a.new_data![k] ?? null))
     .map((k) => {
-      const fmt = (v: unknown) => (k === "stage" ? STAGE_LABEL[v as Stage] : v ?? "—");
+      const fmt = (v: unknown) =>
+        k === "stage" ? STAGE_LABEL[v as Stage] : (k === "sales_rep_id" || k === "sdr_id") && v != null ? repName.get(Number(v)) ?? v : v ?? "—";
       return `${FIELD_LABEL[k]} : ${fmt(a.old_data![k])} → ${fmt(a.new_data![k])}`;
     });
   return changes.join(" ; ") || "Aucun champ suivi modifié";

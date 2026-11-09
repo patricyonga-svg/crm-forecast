@@ -14,8 +14,9 @@ export default async function UsersPage() {
       <div>
         <h1 className="text-xl font-semibold">Utilisateurs</h1>
         <p className="text-sm text-zinc-600">
-          Chaque collègue apparaît ici après sa première connexion avec Google. Choisissez son rôle, son pays et, pour un commercial, son nom
-          dans le fichier de forecast pour lui rattacher ses affaires.
+          Chaque collègue apparaît ici après sa première connexion avec Google. Choisissez son rôle, son pays et, pour un commercial (AE ou SDR), son
+          nom dans le fichier de forecast pour lui rattacher ses affaires. Un SDR doit avoir son nom rattaché pour recevoir des objectifs de
+          prospection et être choisi comme SDR d&apos;une affaire.
         </p>
       </div>
       <div className="card overflow-x-auto">

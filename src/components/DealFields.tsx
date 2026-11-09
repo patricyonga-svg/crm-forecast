@@ -1,8 +1,9 @@
 import { CARDS_STATUS, STAGES, type Deal } from "@/lib/domain";
+import { QuoteUpload } from "./QuoteUpload";
 
 type Refs = {
   lines: { id: number; name: string }[];
-  reps: { id: number; display_name: string; country_code: string | null }[];
+  reps: { id: number; display_name: string; country_code: string | null; is_sdr?: boolean; active?: boolean }[];
 };
 
 /** Champs communs à la création et à la modification d'une affaire. */
@@ -20,6 +21,8 @@ export function DealFields({
   commentRequired?: boolean;
 }) {
   const reps = country ? refs.reps.filter((r) => !r.country_code || r.country_code === country) : refs.reps;
+  // SDR proposés : les commerciaux SDR du pays, plus le SDR actuel de l'affaire s'il ne l'est plus.
+  const sdrs = reps.filter((r) => (r.is_sdr && r.active !== false) || r.id === deal?.sdr_id);
   return (
     <div className="grid gap-3 md:grid-cols-2">
       <label className="space-y-1 text-sm md:col-span-2">
@@ -74,6 +77,17 @@ export function DealFields({
         </select>
       </label>
       <label className="space-y-1 text-sm">
+        <span className="text-zinc-600">SDR</span>
+        <select name="sdr_id" defaultValue={deal?.sdr_id ?? ""} className="input">
+          <option value="">— (aucun : affaire apportée par le porteur)</option>
+          {sdrs.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.display_name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="space-y-1 text-sm">
         <span className="text-zinc-600">Prochaine action</span>
         <input name="next_action" defaultValue={deal?.next_action ?? ""} placeholder="Ex. relancer pour validation du devis" className="input" />
       </label>
@@ -92,6 +106,14 @@ export function DealFields({
           ))}
         </select>
       </label>
+      <label className="space-y-1 text-sm">
+        <span className="text-zinc-600">Date prévisionnelle d&apos;encaissement</span>
+        <input name="expected_payment_date" type="date" defaultValue={deal?.expected_payment_date ?? ""} className="input" />
+        <span className="block text-xs text-zinc-500">Obligatoire pour passer en Won Pending.</span>
+      </label>
+      <div className="md:col-span-2">
+        <QuoteUpload dealId={deal?.id} current={{ path: deal?.quote_file_path ?? null, name: deal?.quote_file_name ?? null }} />
+      </div>
       <label className="space-y-1 text-sm md:col-span-2">
         <span className="text-zinc-600">Commentaire{commentRequired && " *"}</span>
         <textarea name="comment" defaultValue={deal?.comment ?? ""} required={commentRequired} rows={2} className="input" />

@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { CARDS_STATUS, formatDate, LEAD_STAGES, STAGE_ACCENT, STAGES, type CardsStatus, type Contact, type Stage } from "@/lib/domain";
 import { formatM, initials } from "@/lib/reports";
-import { getBookingData, moveDeal } from "@/app/(app)/affaires/actions";
+import { getBookingData, moveDeal, type MoveExtra } from "@/app/(app)/affaires/actions";
 import { BookingForm } from "./BookingForm";
+import { LateCollectionPill } from "./charts";
+import { QuoteUpload } from "./QuoteUpload";
 
 export type BoardCard = {
   id: string;
@@ -19,11 +21,14 @@ export type BoardCard = {
   country: string;
   late: boolean;
   cards: CardsStatus | null;
+  hasQuote: boolean;
+  paymentDate: string | null;
+  lateCollection: boolean;
 };
 
 type Dialog =
   | { kind: "rdv"; card: BoardCard; data: { contacts: Contact[]; reps: { id: number; display_name: string }[]; defaultRep: number | null } | null }
-  | { kind: "cartes"; card: BoardCard };
+  | { kind: "vente"; card: BoardCard; stage: "forecast" | "won_pending" | "won" };
 
 /** Étapes rangées dans des zones étroites à droite du pipe, dépliables au clic. */
 const TRAY_STAGES: Stage[] = ["a_relancer", "perdu"];
@@ -47,13 +52,26 @@ export function PipelineBoard({ cards: initial, stages }: { cards: BoardCard[]; 
   const columns = STAGES.filter((s) => !filtered || stages!.includes(s.value));
   const groupLeads = !filtered && !leadsOpen;
 
-  function move(card: BoardCard, stage: Stage, cards?: CardsStatus) {
+  function move(card: BoardCard, stage: Stage, extra: MoveExtra = {}) {
     setMessage(null);
     const previous = card.stage;
     // « CR de rendez-vous » ouvre la fiche sur son formulaire ; les autres étapes changent tout de suite.
-    if (stage !== "cr_rdv") setCards((cs) => cs.map((c) => (c.id === card.id ? { ...c, stage, cards: cards ?? c.cards } : c)));
+    if (stage !== "cr_rdv")
+      setCards((cs) =>
+        cs.map((c) =>
+          c.id === card.id
+            ? {
+                ...c,
+                stage,
+                cards: (extra.cards as CardsStatus | undefined) ?? c.cards,
+                hasQuote: c.hasQuote || !!extra.quotePath,
+                paymentDate: extra.paymentDate ?? c.paymentDate,
+              }
+            : c,
+        ),
+      );
     startTransition(async () => {
-      const result: { error?: string; redirectTo?: string } = await moveDeal(card.id, stage, cards).catch(() => ({
+      const result: { error?: string; redirectTo?: string } = await moveDeal(card.id, stage, extra).catch(() => ({
         error: "la modification n'a pas pu être enregistrée, réessayez.",
       }));
       if (result.error) {
@@ -86,8 +104,9 @@ export function PipelineBoard({ cards: initial, stages }: { cards: BoardCard[]; 
         });
       return;
     }
-    if (stage === "won_pending") {
-      setDialog({ kind: "cartes", card });
+    // Won Pending demande toujours cartes et date d'encaissement ; Forecast et Won, le devis s'il manque.
+    if (stage === "won_pending" || ((stage === "forecast" || stage === "won") && !card.hasQuote)) {
+      setDialog({ kind: "vente", card, stage });
       return;
     }
     move(card, stage);
@@ -106,7 +125,7 @@ export function PipelineBoard({ cards: initial, stages }: { cards: BoardCard[]; 
           <div className="mt-10 w-full max-w-2xl rounded-xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold">{dialog.kind === "rdv" ? "Prise de rendez-vous" : "Passage en Won Pending"}</h2>
+                <h2 className="text-lg font-semibold">{dialog.kind === "rdv" ? "Prise de rendez-vous" : `Passage en ${STAGES.find((s) => s.value === dialog.stage)?.label}`}</h2>
                 <p className="text-sm text-zinc-500">
                   {dialog.card.title}
                   {dialog.card.title !== dialog.card.client && ` · ${dialog.card.client}`}
@@ -136,29 +155,15 @@ export function PipelineBoard({ cards: initial, stages }: { cards: BoardCard[]; 
                 <p className="py-6 text-center text-sm text-zinc-500">Chargement…</p>
               )
             ) : (
-              <div className="space-y-3">
-                <p className="text-sm">Les cartes ont-elles été livrées ?</p>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {CARDS_STATUS.map((c) => (
-                    <button
-                      key={c.value}
-                      onClick={() => {
-                        const card = dialog.card;
-                        setDialog(null);
-                        move(card, "won_pending", c.value);
-                      }}
-                      className={`rounded-lg border px-3 py-3 text-sm font-semibold hover:border-brand-blue hover:bg-blue-50 ${
-                        dialog.card.cards === c.value ? "border-brand-blue bg-blue-50" : "border-zinc-300"
-                      }`}
-                    >
-                      {c.label}
-                    </button>
-                  ))}
-                </div>
-                <p className="text-xs text-zinc-500">
-                  Cartes livrées et moins de la moitié du montant encaissée : le porteur reçoit un rappel par email chaque lundi.
-                </p>
-              </div>
+              <SalesDialog
+                card={dialog.card}
+                stage={dialog.stage}
+                onConfirm={(extra) => {
+                  const { card, stage } = dialog;
+                  setDialog(null);
+                  move(card, stage, extra);
+                }}
+              />
             )}
           </div>
         </div>
@@ -267,7 +272,8 @@ export function PipelineBoard({ cards: initial, stages }: { cards: BoardCard[]; 
       <p className="text-xs text-zinc-500">
         Glissez une vignette d&apos;une colonne à l&apos;autre pour changer l&apos;étape. La colonne « Prospection » se déplie en trois étapes pendant le
         glisser ; « À relancer » et « Perdu » sont les zones à droite. Vers « Prise de rendez-vous », le formulaire de rendez-vous
-        s&apos;ouvre ; vers « Won Pending », on vous demande si les cartes sont livrées ; vers « CR de rendez-vous », la fiche de l&apos;affaire s&apos;ouvre
+        s&apos;ouvre ; vers « Forecast » et « Won », on vous demande le devis s&apos;il manque ; vers « Won
+        Pending », le devis, la livraison des cartes et la date prévisionnelle d&apos;encaissement ; vers « CR de rendez-vous », la fiche de l&apos;affaire s&apos;ouvre
         sur le compte rendu.
       </p>
     </div>
@@ -350,6 +356,13 @@ function Column({
               {c.title}
             </Link>
             {c.title !== c.client && <div className="truncate text-xs text-zinc-600">{c.client}</div>}
+            {c.lateCollection && (
+              <div className="mt-1">
+                <LateCollectionPill
+                  title={c.paymentDate ? `Encaissement prévu le ${formatDate(c.paymentDate)}, date dépassée` : "Closing de plus de 30 jours, sans date prévisionnelle d'encaissement"}
+                />
+              </div>
+            )}
             <div className="mt-1 text-base font-bold tabular-nums">{formatM(c.amount)}</div>
             <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-zinc-500">
               <span className="flex min-w-0 items-center gap-1.5">
@@ -376,5 +389,56 @@ function Column({
         {cards.length === 0 && <p className="px-1 py-4 text-center text-xs text-zinc-400">Déposez une affaire ici</p>}
       </div>
     </section>
+  );
+}
+
+/** Ce qu'il faut renseigner pour passer en Forecast, Won Pending ou Won depuis le pipe. */
+function SalesDialog({ card, stage, onConfirm }: { card: BoardCard; stage: "forecast" | "won_pending" | "won"; onConfirm: (extra: MoveExtra) => void }) {
+  const [cards, setCardsStatus] = useState<CardsStatus | null>(card.cards);
+  const [paymentDate, setPaymentDate] = useState(card.paymentDate ?? "");
+  const [quote, setQuote] = useState<{ path: string; name: string } | null>(null);
+  const pending = stage === "won_pending";
+  const needQuote = !card.hasQuote && !quote;
+  const ready = !needQuote && (!pending || (cards && paymentDate));
+  return (
+    <div className="space-y-4">
+      {!card.hasQuote && (
+        <div className="rounded-lg border border-zinc-200 p-3">
+          <QuoteUpload dealId={card.id} required label="Devis de l'affaire" onUploaded={setQuote} />
+        </div>
+      )}
+      {pending && (
+        <>
+          <div className="space-y-2">
+            <p className="text-sm">Les cartes ont-elles été livrées ? *</p>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {CARDS_STATUS.map((c) => (
+                <button
+                  key={c.value}
+                  type="button"
+                  onClick={() => setCardsStatus(c.value)}
+                  className={`rounded-lg border px-3 py-3 text-sm font-semibold hover:border-brand-blue hover:bg-blue-50 ${cards === c.value ? "border-brand-blue bg-blue-50" : "border-zinc-300"}`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-zinc-500">Cartes livrées et moins de la moitié du montant encaissée : le porteur reçoit un rappel par email chaque lundi.</p>
+          </div>
+          <label className="block space-y-1 text-sm sm:w-1/2">
+            <span className="text-zinc-600">Date prévisionnelle d&apos;encaissement *</span>
+            <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="input" />
+          </label>
+        </>
+      )}
+      <button
+        type="button"
+        disabled={!ready}
+        onClick={() => onConfirm({ cards: cards ?? undefined, paymentDate: paymentDate || undefined, quotePath: quote?.path, quoteName: quote?.name })}
+        className="btn"
+      >
+        Passer en {STAGES.find((s) => s.value === stage)?.label}
+      </button>
+    </div>
   );
 }
