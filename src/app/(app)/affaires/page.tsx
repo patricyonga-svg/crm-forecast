@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getReferences, getSession } from "@/lib/session";
-import { STAGES, dealTitle, lateCollection, formatDate, formatMoney, isStage, quarterRange, type Deal } from "@/lib/domain";
+import { SALE_CHANNELS, STAGES, dealTitle, lateCollection, formatDate, formatMoney, isStage, quarterRange, type Deal } from "@/lib/domain";
 import { formatM } from "@/lib/reports";
 import { PipelineBoard } from "@/components/PipelineBoard";
 import { FilterBar } from "@/components/FilterBar";
@@ -14,7 +14,7 @@ type Row = Deal & {
 };
 
 type Param = string | string[] | undefined;
-type Search = { q?: string; pays?: Param; etape?: Param; porteur?: Param; lob?: Param; trimestre?: Param; vue?: string; mode?: string };
+type Search = { q?: string; pays?: Param; etape?: Param; porteur?: Param; lob?: Param; trimestre?: Param; vente?: Param; vue?: string; mode?: string };
 
 /** Valeurs d'un filtre à choix multiple (?pays=SN&pays=CI), sans doublon ni valeur vide. */
 function list(p: Param): string[] {
@@ -40,10 +40,12 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
     lob: list(params.lob),
     porteur: list(params.porteur),
     trimestre: list(params.trimestre),
+    vente: list(params.vente),
   };
   if (f.pays.length) query = query.in("country_code", f.pays);
   if (f.etape.length) query = query.in("stage", f.etape);
   if (f.lob.length) query = query.in("business_line_id", f.lob.map(Number));
+  if (f.vente.length) query = query.in("sale_channel", f.vente);
   if (f.porteur.length) {
     const ids = f.porteur.filter((p) => p !== "aucun").map(Number).filter(Number.isFinite);
     const parts = [...(ids.length ? [`sales_rep_id.in.(${ids.join(",")})`] : []), ...(f.porteur.includes("aucun") ? ["sales_rep_id.is.null"] : [])];
@@ -116,6 +118,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
           { name: "pays", label: "Pays", options: refs.countries.map((c) => ({ value: c.code, label: c.name })) },
           { name: "etape", label: "Étape", options: STAGES.map((st) => ({ value: st.value, label: st.label })) },
           { name: "lob", label: "LoB", options: refs.lines.map((l) => ({ value: String(l.id), label: l.name })) },
+          { name: "vente", label: "Type de vente", options: SALE_CHANNELS.map((c) => ({ value: c.value, label: c.label })) },
           {
             name: "porteur",
             label: "Porteur",
@@ -162,6 +165,8 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
             country: d.country_code,
             cards: d.cards_status,
             hasQuote: !!d.quote_file_path,
+            hasInvoice: !!d.invoice_file_path,
+            created: d.created_at.slice(0, 10),
             paymentDate: d.expected_payment_date,
             lateCollection: lateCollection(d, today),
             late: !!d.expected_close_date && d.expected_close_date < today && !["won", "won_pending", "perdu"].includes(d.stage),

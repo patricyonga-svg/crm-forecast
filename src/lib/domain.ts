@@ -124,6 +124,16 @@ export const isCardsStatus = (v: unknown): v is CardsStatus => CARDS_STATUS.some
 export const needsCollectionReminder = (d: { stage: string; cards_status: string | null; quote_amount: number; collected_amount: number }) =>
   d.stage === "won_pending" && d.cards_status === "livrees" && Number(d.collected_amount) < Number(d.quote_amount) / 2;
 
+/** Origine de la vente : via un apporteur d'affaires ou en interne. */
+export const SALE_CHANNELS = [
+  { value: "interne", label: "Interne" },
+  { value: "apporteur", label: "Apporteur" },
+] as const;
+
+export type SaleChannel = (typeof SALE_CHANNELS)[number]["value"];
+
+export const isSaleChannel = (v: unknown): v is SaleChannel => SALE_CHANNELS.some((c) => c.value === v);
+
 /** Étapes pour lesquelles un devis joint est obligatoire au moment d'y passer. */
 export const QUOTE_REQUIRED_STAGES: Stage[] = ["forecast", "won_pending", "won"];
 
@@ -171,6 +181,9 @@ export type Deal = {
   quote_file_name: string | null;
   expected_payment_date: string | null;
   qualified_at: string | null;
+  sale_channel: SaleChannel | null;
+  invoice_file_path: string | null;
+  invoice_file_name: string | null;
   created_at: string;
   client_id: string;
   country_code: string;

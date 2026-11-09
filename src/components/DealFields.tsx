@@ -1,4 +1,4 @@
-import { CARDS_STATUS, STAGES, type Deal } from "@/lib/domain";
+import { CARDS_STATUS, SALE_CHANNELS, STAGES, type Deal } from "@/lib/domain";
 import { QuoteUpload } from "./QuoteUpload";
 
 type Refs = {
@@ -77,6 +77,17 @@ export function DealFields({
         </select>
       </label>
       <label className="space-y-1 text-sm">
+        <span className="text-zinc-600">Type de vente</span>
+        <select name="sale_channel" defaultValue={deal?.sale_channel ?? ""} className="input">
+          <option value="">—</option>
+          {SALE_CHANNELS.map((c) => (
+            <option key={c.value} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="space-y-1 text-sm">
         <span className="text-zinc-600">SDR</span>
         <select name="sdr_id" defaultValue={deal?.sdr_id ?? ""} className="input">
           <option value="">— (aucun : affaire apportée par le porteur)</option>
@@ -111,8 +122,16 @@ export function DealFields({
         <input name="expected_payment_date" type="date" defaultValue={deal?.expected_payment_date ?? ""} className="input" />
         <span className="block text-xs text-zinc-500">Obligatoire pour passer en Won Pending.</span>
       </label>
-      <div className="md:col-span-2">
+      <div>
         <QuoteUpload dealId={deal?.id} current={{ path: deal?.quote_file_path ?? null, name: deal?.quote_file_name ?? null }} />
+      </div>
+      <div>
+        <QuoteUpload
+          field="invoice"
+          dealId={deal?.id}
+          current={{ path: deal?.invoice_file_path ?? null, name: deal?.invoice_file_name ?? null }}
+          help="Facultative, mais requise pour une affaire en Won Pending (PDF, Word, Excel ou image, 20 Mo maximum)."
+        />
       </div>
       <label className="space-y-1 text-sm md:col-span-2">
         <span className="text-zinc-600">Commentaire{commentRequired && " *"}</span>

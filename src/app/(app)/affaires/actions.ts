@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { type Contact, contactName, formatDateTime, isCardsStatus, isStage, QUOTE_REQUIRED_STAGES, STAGE_LABEL, dealTitle, type Stage } from "@/lib/domain";
+import { type Contact, contactName, formatDate, formatDateTime, isCardsStatus, isSaleChannel, isStage, QUOTE_REQUIRED_STAGES, STAGE_LABEL, dealTitle, type Stage } from "@/lib/domain";
 import { calendarInvite, emailConfigured, escapeHtml, googleCalendarLink, sendMail } from "@/lib/email";
 
 export type FormState = { error?: string; ok?: string };
@@ -72,16 +72,45 @@ function dealFields(form: FormData) {
     cards_status: isCardsStatus(text(form, "cards_status")) ? text(form, "cards_status") : null,
     sdr_id: int(form, "sdr_id"),
     expected_payment_date: text(form, "expected_payment_date"),
-    // Devis : seulement quand un nouveau fichier vient d'être envoyé (sinon on garde celui déjà joint).
+    sale_channel: isSaleChannel(text(form, "sale_channel")) ? text(form, "sale_channel") : null,
+    // Devis et facture : seulement quand un nouveau fichier vient d'être envoyé (sinon on garde celui déjà joint).
     ...quoteFields(form),
+    ...invoiceFields(form),
   };
 }
 
-/** Chemin et nom du devis envoyé depuis le formulaire (fichier déjà déposé dans l'espace « devis »). */
+/** Chemin et nom d'un fichier envoyé depuis le formulaire (déjà déposé dans l'espace privé « devis »). */
+function fileFields(form: FormData, field: "quote" | "invoice") {
+  const path = text(form, `${field}_file_path`);
+  if (!path || !/^[\w-]+\/\d+-[\w.-]+$/.test(path)) return null;
+  return { path, name: text(form, `${field}_file_name`) ?? path.split("/").pop()! };
+}
+
 function quoteFields(form: FormData): { quote_file_path?: string; quote_file_name?: string } {
-  const path = text(form, "quote_file_path");
-  if (!path || !/^[\w-]+\/\d+-[\w.-]+$/.test(path)) return {};
-  return { quote_file_path: path, quote_file_name: text(form, "quote_file_name") ?? path.split("/").pop()! };
+  const f = fileFields(form, "quote");
+  return f ? { quote_file_path: f.path, quote_file_name: f.name } : {};
+}
+
+function invoiceFields(form: FormData): { invoice_file_path?: string; invoice_file_name?: string } {
+  const f = fileFields(form, "invoice");
+  return f ? { invoice_file_path: f.path, invoice_file_name: f.name } : {};
+}
+
+const INVOICE_REMINDER = "N'oubliez pas de joindre la facture : elle est requise pour une affaire en Won Pending.";
+
+/** Prochaine action recopiée dans l'historique, comme une note datée du jour. */
+async function logNextAction(supabase: Supabase, dealId: string, action: string | null, date: string | null) {
+  if (!action && !date) return;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+  await supabase.from("activities").insert({
+    deal_id: dealId,
+    kind: "note",
+    body: `Prochaine action${date ? ` prévue le ${formatDate(date)}` : ""} : ${action ?? "—"}`,
+    author_id: user.id,
+  });
 }
 
 const CARDS_REQUIRED = "Pour passer en « Won Pending », indiquez si les cartes sont livrées, non livrées ou désactivées.";
@@ -168,6 +197,7 @@ export async function createDeal(_prev: FormState, form: FormData): Promise<Form
       .single();
     if (error) throw new Error(error.message);
     if (hasContactInput(contact)) await insertContact(supabase, clientId, data.id, contact);
+    await logNextAction(supabase, data.id, fields.next_action, fields.next_action_date);
     revalidatePath("/affaires");
     const next = FORM_FOR_STAGE[fields.stage];
     target = `/affaires/${data.id}${next ? `?action=${next}#${next}` : ""}`;
@@ -201,10 +231,15 @@ async function stageProblem(supabase: Supabase, dealId: string, stage: Stage, in
 
 export async function updateDeal(id: string, _prev: FormState, form: FormData): Promise<FormState> {
   let target: string | null = null;
+  let notice: string | null = null;
   try {
     const supabase = await createClient();
     const fields = dealFields(form);
-    const { data: current } = await supabase.from("deals").select("stage").eq("id", id).single<{ stage: Stage }>();
+    const { data: current } = await supabase
+      .from("deals")
+      .select("stage, next_action, next_action_date, invoice_file_path")
+      .eq("id", id)
+      .single<{ stage: Stage; next_action: string | null; next_action_date: string | null; invoice_file_path: string | null }>();
     const changing = current && current.stage !== fields.stage;
     let patch: Partial<typeof fields> = fields;
     if (changing && FORM_FOR_STAGE[fields.stage]) {
@@ -223,29 +258,39 @@ export async function updateDeal(id: string, _prev: FormState, form: FormData): 
     const { data, error } = await supabase.from("deals").update(patch).eq("id", id).select("id");
     if (error) throw new Error(error.message);
     if (!data?.length) throw new Error("Vous ne pouvez pas modifier cette affaire (réservé à son porteur, au manager du pays et aux administrateurs).");
+    // Nouvelle prochaine action (ou nouvelle date) : recopiée dans l'historique.
+    if (current && (fields.next_action !== current.next_action || fields.next_action_date !== current.next_action_date) && (fields.next_action || fields.next_action_date)) {
+      await logNextAction(supabase, id, fields.next_action, fields.next_action_date);
+    }
     revalidatePath(`/affaires/${id}`);
     revalidatePath("/affaires");
+    if (!target && patch.stage === "won_pending" && changing && !fields.invoice_file_path && !current?.invoice_file_path) {
+      notice = INVOICE_REMINDER;
+    }
   } catch (e) {
     return fail(e);
   }
   if (target) redirect(target);
-  return { ok: "Enregistré." };
+  return { ok: notice ? `Enregistré. ${notice}` : "Enregistré." };
 }
 
-export type MoveExtra = { cards?: string; paymentDate?: string; quotePath?: string; quoteName?: string };
+export type MoveExtra = { cards?: string; paymentDate?: string; quotePath?: string; quoteName?: string; invoicePath?: string; invoiceName?: string };
 
 /** Glisser-déposer dans le pipe. Renvoie l'adresse du formulaire à ouvrir pour les étapes qui en ont un. */
-export async function moveDeal(id: string, stage: string, extra: MoveExtra = {}): Promise<{ error?: string; redirectTo?: string }> {
+export async function moveDeal(id: string, stage: string, extra: MoveExtra = {}): Promise<{ error?: string; redirectTo?: string; notice?: string }> {
   if (!isStage(stage)) return { error: "Étape invalide." };
   if (FORM_FOR_STAGE[stage]) return { redirectTo: `/affaires/${id}?action=${FORM_FOR_STAGE[stage]}#${FORM_FOR_STAGE[stage]}` };
   const form = new FormData();
   if (extra.quotePath) form.set("quote_file_path", extra.quotePath);
   if (extra.quoteName) form.set("quote_file_name", extra.quoteName);
+  if (extra.invoicePath) form.set("invoice_file_path", extra.invoicePath);
+  if (extra.invoiceName) form.set("invoice_file_name", extra.invoiceName);
   const patch: Record<string, unknown> = {
     stage,
     ...(isCardsStatus(extra.cards) ? { cards_status: extra.cards } : {}),
     ...(extra.paymentDate && /^\d{4}-\d{2}-\d{2}$/.test(extra.paymentDate) ? { expected_payment_date: extra.paymentDate } : {}),
     ...quoteFields(form),
+    ...invoiceFields(form),
   };
   const supabase = await createClient();
   const problem = await stageProblem(supabase, id, stage, patch as SalesInput);
@@ -255,6 +300,10 @@ export async function moveDeal(id: string, stage: string, extra: MoveExtra = {})
   if (!data?.length) return { error: "Vous ne pouvez pas modifier cette affaire (réservé à son porteur, au manager du pays et aux administrateurs)." };
   revalidatePath("/affaires");
   revalidatePath(`/affaires/${id}`);
+  if (stage === "won_pending" && !patch.invoice_file_path) {
+    const { data: inv } = await supabase.from("deals").select("invoice_file_path").eq("id", id).single<{ invoice_file_path: string | null }>();
+    if (!inv?.invoice_file_path) return { notice: INVOICE_REMINDER };
+  }
   return {};
 }
 
@@ -586,4 +635,24 @@ export async function deletePayment(dealId: string, paymentId: string) {
   const { error } = await supabase.from("payments").delete().eq("id", paymentId);
   if (error) throw new Error(error.message);
   revalidatePath(`/affaires/${dealId}`);
+}
+
+/** Prochaine action réalisée : notée dans l'historique, puis les champs sont vidés. */
+export async function completeNextAction(dealId: string) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: deal } = await supabase.from("deals").select("next_action, next_action_date").eq("id", dealId).single<{ next_action: string | null; next_action_date: string | null }>();
+  if (!user || !deal || (!deal.next_action && !deal.next_action_date)) return;
+  const { data } = await supabase.from("deals").update({ next_action: null, next_action_date: null }).eq("id", dealId).select("id");
+  if (!data?.length) return;
+  await supabase.from("activities").insert({
+    deal_id: dealId,
+    kind: "note",
+    body: `Action faite${deal.next_action_date ? ` (prévue le ${formatDate(deal.next_action_date)})` : ""} : ${deal.next_action ?? "—"}`,
+    author_id: user.id,
+  });
+  revalidatePath(`/affaires/${dealId}`);
+  revalidatePath("/affaires");
 }

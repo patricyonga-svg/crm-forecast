@@ -22,6 +22,8 @@ export type BoardCard = {
   late: boolean;
   cards: CardsStatus | null;
   hasQuote: boolean;
+  hasInvoice: boolean;
+  created: string;
   paymentDate: string | null;
   lateCollection: boolean;
 };
@@ -41,7 +43,7 @@ export function PipelineBoard({ cards: initial, stages }: { cards: BoardCard[]; 
   const [cards, setCards] = useState(initial);
   const [dragging, setDragging] = useState<string | null>(null);
   const [over, setOver] = useState<Stage | null>(null);
-  const [message, setMessage] = useState<{ text: string; href?: string; ok?: boolean } | null>(null);
+  const [message, setMessage] = useState<{ text: string; href?: string; ok?: boolean; warn?: boolean } | null>(null);
   const [dialog, setDialog] = useState<Dialog | null>(null);
   const [, startTransition] = useTransition();
   // Prospection regroupée en une colonne et étapes « À relancer » / « Perdu » en zones étroites, sauf si on les déplie
@@ -65,13 +67,14 @@ export function PipelineBoard({ cards: initial, stages }: { cards: BoardCard[]; 
                 stage,
                 cards: (extra.cards as CardsStatus | undefined) ?? c.cards,
                 hasQuote: c.hasQuote || !!extra.quotePath,
+                hasInvoice: c.hasInvoice || !!extra.invoicePath,
                 paymentDate: extra.paymentDate ?? c.paymentDate,
               }
             : c,
         ),
       );
     startTransition(async () => {
-      const result: { error?: string; redirectTo?: string } = await moveDeal(card.id, stage, extra).catch(() => ({
+      const result: { error?: string; redirectTo?: string; notice?: string } = await moveDeal(card.id, stage, extra).catch(() => ({
         error: "la modification n'a pas pu être enregistrée, réessayez.",
       }));
       if (result.error) {
@@ -80,6 +83,7 @@ export function PipelineBoard({ cards: initial, stages }: { cards: BoardCard[]; 
       } else if (result.redirectTo) {
         router.push(result.redirectTo);
       } else {
+        if (result.notice) setMessage({ text: `« ${card.title} » est en ${STAGES.find((s) => s.value === stage)?.label}. ${result.notice}`, href: `/affaires/${card.id}`, warn: true });
         router.refresh();
       }
     });
@@ -171,7 +175,11 @@ export function PipelineBoard({ cards: initial, stages }: { cards: BoardCard[]; 
       {message && (
         <div
           className={`flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 text-sm ${
-            message.ok ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800"
+            message.ok
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : message.warn
+                ? "border-amber-200 bg-amber-50 text-amber-900"
+                : "border-red-200 bg-red-50 text-red-800"
           }`}
         >
           <span>{message.text}</span>
@@ -363,7 +371,12 @@ function Column({
                 />
               </div>
             )}
-            <div className="mt-1 text-base font-bold tabular-nums">{formatM(c.amount)}</div>
+            <div className="mt-1 flex items-baseline justify-between gap-2">
+              <span className="text-base font-bold tabular-nums">{formatM(c.amount)}</span>
+              <span className="text-[10px] text-zinc-400" title="Date de création de l'affaire">
+                créée le {formatDate(c.created)}
+              </span>
+            </div>
             <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-zinc-500">
               <span className="flex min-w-0 items-center gap-1.5">
                 {c.rep ? (
@@ -397,6 +410,7 @@ function SalesDialog({ card, stage, onConfirm }: { card: BoardCard; stage: "fore
   const [cards, setCardsStatus] = useState<CardsStatus | null>(card.cards);
   const [paymentDate, setPaymentDate] = useState(card.paymentDate ?? "");
   const [quote, setQuote] = useState<{ path: string; name: string } | null>(null);
+  const [invoice, setInvoice] = useState<{ path: string; name: string } | null>(null);
   const pending = stage === "won_pending";
   const needQuote = !card.hasQuote && !quote;
   const ready = !needQuote && (!pending || (cards && paymentDate));
@@ -429,12 +443,23 @@ function SalesDialog({ card, stage, onConfirm }: { card: BoardCard; stage: "fore
             <span className="text-zinc-600">Date prévisionnelle d&apos;encaissement *</span>
             <input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="input" />
           </label>
+          {!card.hasInvoice && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50/60 p-3">
+              <QuoteUpload
+                field="invoice"
+                dealId={card.id}
+                label="Facture"
+                help="La facture est requise en Won Pending : joignez-la maintenant, ou plus tard depuis la fiche de l'affaire."
+                onUploaded={setInvoice}
+              />
+            </div>
+          )}
         </>
       )}
       <button
         type="button"
         disabled={!ready}
-        onClick={() => onConfirm({ cards: cards ?? undefined, paymentDate: paymentDate || undefined, quotePath: quote?.path, quoteName: quote?.name })}
+        onClick={() => onConfirm({ cards: cards ?? undefined, paymentDate: paymentDate || undefined, quotePath: quote?.path, quoteName: quote?.name, invoicePath: invoice?.path, invoiceName: invoice?.name })}
         className="btn"
       >
         Passer en {STAGES.find((s) => s.value === stage)?.label}
