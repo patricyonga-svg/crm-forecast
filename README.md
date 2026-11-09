@@ -28,7 +28,8 @@ Le trimestre est calculé à partir de la date de closing (trimestres civils).
 
 | Rôle | Voit | Modifie |
 |---|---|---|
-| Commercial | les affaires de son pays | les affaires dont il est porteur |
+| Commercial - AE | les affaires de son pays | les affaires dont il est porteur ou SDR |
+| Commercial - SDR | les affaires de son pays | les affaires dont il est porteur ou SDR ; a en plus des objectifs de prospection |
 | Manager | les affaires de son pays | toutes les affaires et objectifs de son pays |
 | Direction | tout | rien |
 | Admin | tout | tout, référentiels compris |

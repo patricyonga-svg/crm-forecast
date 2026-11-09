@@ -18,7 +18,9 @@ export default async function NewDealPage({ searchParams }: { searchParams: Prom
       refs={refs}
       clients={clients ?? []}
       defaultCountry={profile?.country_code}
-      defaultRep={myRep?.id ?? null}
+      // Un SDR qui crée une affaire en est le SDR ; le porteur (AE) sera choisi au rendez-vous.
+      defaultRep={myRep && !myRep.is_sdr ? myRep.id : null}
+      defaultSdr={myRep?.is_sdr ? myRep.id : null}
       defaultStage={isStage(etape) ? etape : "a_contacter"}
     />
   );

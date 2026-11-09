@@ -102,7 +102,12 @@ export type Appointment = {
   report_close_date: string | null;
   report_notes: string | null;
   reported_at: string | null;
+  done_at: string | null;
+  outcome: string | null;
 };
+
+/** Rendez-vous effectué : marqué comme tel, ou avec un compte rendu. */
+export const appointmentDone = (a: Pick<Appointment, "done_at" | "reported_at">) => !!(a.done_at || a.reported_at);
 
 /** Livraison des cartes : à renseigner pour passer en Won Pending. */
 export const CARDS_STATUS = [
@@ -118,6 +123,24 @@ export const isCardsStatus = (v: unknown): v is CardsStatus => CARDS_STATUS.some
 /** Rappel d'encaissement : cartes livrées et moins de la moitié du montant encaissée. */
 export const needsCollectionReminder = (d: { stage: string; cards_status: string | null; quote_amount: number; collected_amount: number }) =>
   d.stage === "won_pending" && d.cards_status === "livrees" && Number(d.collected_amount) < Number(d.quote_amount) / 2;
+
+/** Étapes pour lesquelles un devis joint est obligatoire au moment d'y passer. */
+export const QUOTE_REQUIRED_STAGES: Stage[] = ["forecast", "won_pending", "won"];
+
+const addDays = (iso: string, days: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+
+/**
+ * « Encaissement en retard » (Won Pending) : la date prévisionnelle d'encaissement est dépassée,
+ * ou, sans date prévisionnelle, le closing date de plus de 30 jours.
+ */
+export function lateCollection(
+  d: { stage: string; expected_close_date: string | null; expected_payment_date: string | null },
+  today = new Date().toISOString().slice(0, 10),
+): boolean {
+  if (d.stage !== "won_pending") return false;
+  if (d.expected_payment_date) return d.expected_payment_date < today;
+  return !!d.expected_close_date && d.expected_close_date < addDays(today, -30);
+}
 
 /** Secteurs proposés (saisie libre possible). */
 export const SECTORS = [
@@ -143,6 +166,12 @@ export type Deal = {
   name: string | null;
   comment: string | null;
   cards_status: CardsStatus | null;
+  sdr_id: number | null;
+  quote_file_path: string | null;
+  quote_file_name: string | null;
+  expected_payment_date: string | null;
+  qualified_at: string | null;
+  created_at: string;
   client_id: string;
   country_code: string;
   business_line_id: number | null;
@@ -162,7 +191,8 @@ export type Deal = {
 };
 
 export const ROLES = [
-  { value: "commercial", label: "Commercial", help: "voit les affaires de son pays et modifie les siennes" },
+  { value: "commercial", label: "Commercial - AE", help: "voit les affaires de son pays et modifie les siennes" },
+  { value: "sdr", label: "Commercial - SDR", help: "mêmes droits qu'un commercial AE, avec en plus des objectifs de prospection (nouveaux leads, leads qualifiés)" },
   { value: "manager", label: "Manager", help: "modifie toutes les affaires de son pays et ses objectifs" },
   { value: "direction", label: "Direction", help: "voit tous les pays, sans modifier" },
   { value: "admin", label: "Administrateur", help: "peut tout faire, y compris gérer les utilisateurs" },

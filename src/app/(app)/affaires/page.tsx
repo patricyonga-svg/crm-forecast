@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { getReferences, getSession } from "@/lib/session";
-import { STAGES, dealTitle, formatDate, formatMoney, isStage, quarterRange, type Deal } from "@/lib/domain";
+import { STAGES, dealTitle, lateCollection, formatDate, formatMoney, isStage, quarterRange, type Deal } from "@/lib/domain";
 import { formatM } from "@/lib/reports";
 import { PipelineBoard } from "@/components/PipelineBoard";
 import { FilterBar } from "@/components/FilterBar";
 import { StageBadge } from "@/components/StageBadge";
+import { LateCollectionPill } from "@/components/charts";
 
 type Row = Deal & {
   clients: { name: string };
@@ -28,7 +29,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
 
   let query = supabase
     .from("deal_amounts")
-    .select("*, clients!inner(name), business_lines(name), sales_reps(display_name)")
+    .select("*, clients!inner(name), business_lines(name), sales_reps!sales_rep_id(display_name)")
     .order("expected_close_date", { ascending: true, nullsFirst: false })
     .limit(2000);
 
@@ -160,6 +161,9 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
             close: d.expected_close_date,
             country: d.country_code,
             cards: d.cards_status,
+            hasQuote: !!d.quote_file_path,
+            paymentDate: d.expected_payment_date,
+            lateCollection: lateCollection(d, today),
             late: !!d.expected_close_date && d.expected_close_date < today && !["won", "won_pending", "perdu"].includes(d.stage),
           }))}
         />
@@ -193,6 +197,11 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
                 <td className="px-3 py-2">{d.sales_reps?.display_name ?? <span className="text-red-600">—</span>}</td>
                 <td className="px-3 py-2">
                   <StageBadge stage={d.stage} />
+                  {lateCollection(d, today) && (
+                    <div className="mt-1">
+                      <LateCollectionPill />
+                    </div>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums">{formatMoney(d.quote_amount)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{formatMoney(d.collected_amount)}</td>

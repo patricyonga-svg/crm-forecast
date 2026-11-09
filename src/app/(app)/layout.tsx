@@ -16,7 +16,12 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     .lte("next_action_date", today)
     .not("stage", "in", "(won,perdu)");
   const settings = [
-    ...(profile?.role === "admin" || profile?.role === "manager" ? [{ href: "/parametres/objectifs", label: "Objectifs" }] : []),
+    ...(profile?.role === "admin" || profile?.role === "manager"
+      ? [
+          { href: "/parametres/objectifs", label: "Objectifs AE" },
+          { href: "/parametres/objectifs-sdr", label: "Objectifs SDR" },
+        ]
+      : []),
     { href: "/parametres/pipeline", label: "Paramètres pipeline" },
     ...(profile?.role === "admin" ? [{ href: "/utilisateurs", label: "Utilisateurs" }] : []),
   ];
