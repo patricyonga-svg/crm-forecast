@@ -68,7 +68,7 @@ export function lastPeriods(granularity: Granularity, count: number, today = iso
     } else if (granularity === "mois") {
       const start = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() - i, 1));
       const end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 0));
-      out.push({ key: iso(start), label: MONTH.format(start), from: iso(start), to: iso(end) });
+      out.push({ key: iso(start), label: MONTH.format(start).replace(/^./, (c) => c.toUpperCase()), from: iso(start), to: iso(end) });
     } else {
       const q = Math.floor(t.getUTCMonth() / 3) - i;
       const start = new Date(Date.UTC(t.getUTCFullYear(), q * 3, 1));

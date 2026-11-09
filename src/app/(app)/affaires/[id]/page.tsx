@@ -10,6 +10,7 @@ import {
   formatMoney,
   lateCollection,
   needsCollectionReminder,
+  SALE_CHANNELS,
   SECTORS,
   STAGE_LABEL,
   STAGES,
@@ -32,6 +33,7 @@ import {
   addContact,
   addPayment,
   cancelAppointment,
+  completeNextAction,
   markAppointmentDone,
   deletePayment,
   linkContact,
@@ -94,10 +96,17 @@ export default async function DealPage({ params, searchParams }: { params: Promi
           <StageBadge stage={deal.stage} />
           {lateCollection(deal) && <LateCollectionPill />}
         </div>
+        {deal.stage === "won_pending" && !deal.invoice_file_path && (
+          <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            La facture est requise pour une affaire en Won Pending : joignez-la dans « Informations » ci-dessous.
+          </p>
+        )}
         <p className="text-sm text-zinc-500">
           {client.name}
           {client.sector && ` · ${client.sector}`} · {country?.name}
           {deal.sdr_id && ` · SDR : ${repName.get(deal.sdr_id) ?? "?"}`}
+          {deal.sale_channel && ` · Vente ${SALE_CHANNELS.find((c) => c.value === deal.sale_channel)?.label.toLowerCase()}`}
+          {` · Créée le ${formatDate(deal.created_at.slice(0, 10))}`}
         </p>
       </div>
 
@@ -139,6 +148,16 @@ export default async function DealPage({ params, searchParams }: { params: Promi
           <div className="card">
             <ActionForm action={updateDeal.bind(null, deal.id)}>
               <h2 className="font-medium">Informations</h2>
+              {(deal.next_action || deal.next_action_date) && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-blue-50/60 px-3 py-2 text-sm">
+                  <span>
+                    <span className="font-semibold">Prochaine action{deal.next_action_date ? ` (${formatDate(deal.next_action_date)})` : ""} :</span> {deal.next_action ?? "—"}
+                  </span>
+                  <button formAction={completeNextAction.bind(null, deal.id)} formNoValidate className="btn-secondary px-3 py-1 text-xs">
+                    ✓ Action faite
+                  </button>
+                </div>
+              )}
               <DealFields refs={refs} deal={{ ...deal, name: deal.name ?? client.name }} country={deal.country_code} />
               <p className="text-xs text-zinc-500">
                 Les étapes « Prise de rendez-vous » et « CR de rendez-vous » ouvrent leur formulaire ci-dessous.
@@ -491,6 +510,8 @@ const FIELD_LABEL: Record<string, string> = {
   sdr_id: "SDR",
   expected_payment_date: "Date prévisionnelle d'encaissement",
   quote_file_name: "Devis",
+  invoice_file_name: "Facture",
+  sale_channel: "Type de vente",
 };
 
 function describeChange(a: AuditRow, repName: Map<number, string>): string {

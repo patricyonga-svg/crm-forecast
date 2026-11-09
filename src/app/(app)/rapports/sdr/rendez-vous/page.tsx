@@ -105,7 +105,7 @@ function CountTable({ periods, groups, footer }: { periods: Period[]; groups: { 
           <tr className="border-b border-zinc-200">
             <th className="py-1.5 pr-3 text-left font-medium">Commercial</th>
             {periods.map((p, i) => (
-              <th key={p.key} className={`px-2 py-1.5 text-right font-medium capitalize ${i === periods.length - 1 ? "text-zinc-900" : ""}`} title={`${p.from} → ${p.to}`}>
+              <th key={p.key} className={`px-2 py-1.5 text-right font-medium ${i === periods.length - 1 ? "text-zinc-900" : ""}`} title={`${p.from} → ${p.to}`}>
                 {p.label}
               </th>
             ))}
