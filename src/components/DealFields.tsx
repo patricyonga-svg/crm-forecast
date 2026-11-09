@@ -22,7 +22,7 @@ export function DealFields({
 }) {
   const reps = country ? refs.reps.filter((r) => !r.country_code || r.country_code === country) : refs.reps;
   // SDR proposés : les commerciaux SDR du pays, plus le SDR actuel de l'affaire s'il ne l'est plus.
-  const sdrs = reps.filter((r) => (r.is_sdr && r.active !== false) || r.id === deal?.sdr_id);
+  const sdrs = refs.reps.filter((r) => (r.is_sdr && r.active !== false && reps.includes(r)) || r.id === deal?.sdr_id);
   return (
     <div className="grid gap-3 md:grid-cols-2">
       <label className="space-y-1 text-sm md:col-span-2">
