@@ -82,7 +82,14 @@ export default async function PipelineReportPage({ searchParams }: { searchParam
               <StatusPill rate={ratio(g.cov.pipe, g.cov.pipeNeeded)} kind="cover" />
             </div>
           </div>
-          <table className="w-full min-w-[640px] text-sm">
+          {/* Grille fixe : mêmes largeurs de colonnes pour tous les pays. */}
+          <table className="w-full min-w-[640px] table-fixed text-sm">
+            <colgroup>
+              <col className="w-52" />
+              <col />
+              <col className="w-28" />
+              <col className="w-56" />
+            </colgroup>
             <thead className="text-xs text-zinc-500">
               <tr className="border-b border-zinc-100">
                 <th className="pb-1.5 text-left font-medium">Commercial</th>
@@ -97,12 +104,12 @@ export default async function PipelineReportPage({ searchParams }: { searchParam
                 return (
                   <tr key={r.key} className="border-b border-zinc-50 last:border-0">
                     <td className="py-2 pr-2">
-                      <span className="flex items-center gap-2 font-semibold">
+                      <span className="flex min-w-0 items-center gap-2 font-semibold" title={r.name}>
                         <Avatar name={r.name} />
-                        {r.name}
+                        <span className="truncate">{r.name}</span>
                       </span>
                     </td>
-                    <td className="w-2/5 py-2 pl-4">
+                    <td className="py-2 pl-4">
                       <CoverageBar done={r.cov.done} value={r.cov.forecast} needed={r.cov.forecastNeeded} scale={Math.max(g.forecastScale, 1)} />
                       <div className="mt-1 text-xs text-zinc-500 tabular-nums">
                         {formatM(r.cov.forecast)} sur {formatM(r.cov.forecastNeeded)}
