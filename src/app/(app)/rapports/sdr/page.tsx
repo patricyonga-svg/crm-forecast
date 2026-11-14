@@ -105,7 +105,18 @@ export default async function SdrAchievementsPage({ searchParams }: { searchPara
               </p>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[720px] text-sm">
+              {/* Grille fixe : mêmes largeurs de colonnes pour tous les pays, comme dans Réalisations. */}
+              <table className="w-full min-w-[760px] table-fixed text-sm">
+                <colgroup>
+                  <col className="w-44" />
+                  <col />
+                  <col className="w-20" />
+                  <col className="w-20" />
+                  <col />
+                  <col className="w-20" />
+                  <col className="w-20" />
+                  <col className="w-36" />
+                </colgroup>
                 <thead className="text-xs text-zinc-500">
                   <tr>
                     <th className="pb-1 text-left font-medium">SDR</th>
@@ -121,8 +132,10 @@ export default async function SdrAchievementsPage({ searchParams }: { searchPara
                 <tbody>
                   {g.items.map((r) => (
                     <tr key={r.id} className="border-t border-zinc-100">
-                      <td className="py-2 pr-2 font-semibold">{r.display_name}</td>
-                      <td className="w-1/5 py-2 pr-2">
+                      <td className="truncate py-2 pr-2 font-semibold" title={r.display_name}>
+                        {r.display_name}
+                      </td>
+                      <td className="py-2 pr-2">
                         <ProgressBar value={r.m.newLeads} target={r.mObj.newLeads} marker={monthElapsed} />
                         <div className="mt-0.5 text-xs text-zinc-500 tabular-nums">
                           {r.m.newLeads} sur {r.mObj.newLeads} · trimestre {r.q.newLeads} sur {r.qObj.newLeads}
@@ -134,7 +147,7 @@ export default async function SdrAchievementsPage({ searchParams }: { searchPara
                       <td className="py-2 pl-1 text-right text-zinc-600">
                         <Rate rate={ratio(r.q.newLeads, r.qObj.newLeads)} expected={quarterElapsed || 1} />
                       </td>
-                      <td className="w-1/5 py-2 pl-4 pr-2">
+                      <td className="py-2 pl-4 pr-2">
                         <ProgressBar value={r.m.qualified} target={r.mObj.qualified} marker={monthElapsed} />
                         <div className="mt-0.5 text-xs text-zinc-500 tabular-nums">
                           {r.m.qualified} sur {r.mObj.qualified} · trimestre {r.q.qualified} sur {r.qObj.qualified}
