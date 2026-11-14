@@ -48,13 +48,14 @@ export function FilterBar({ filters }: { filters: FilterDef[] }) {
   return (
     <div ref={ref} className={`flex flex-wrap items-center gap-2 ${pending ? "opacity-70" : ""}`}>
       <form
+        className="w-full sm:w-auto"
         role="search"
         onSubmit={(e) => {
           e.preventDefault();
           go((p) => (q.trim() ? p.set("q", q.trim()) : p.delete("q")));
         }}
       >
-        <input value={q} onChange={(e) => setQ(e.target.value)} type="search" placeholder="Rechercher un client…" aria-label="Rechercher un client" className="input w-56" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} type="search" placeholder="Rechercher un client…" aria-label="Rechercher un client" className="input w-full sm:w-56" />
       </form>
       {vue !== "relances" && (
         <button

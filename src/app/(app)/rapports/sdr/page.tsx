@@ -91,7 +91,7 @@ export default async function SdrAchievementsPage({ searchParams }: { searchPara
         </p>
       )}
 
-      <div className="grid gap-4">
+      <div className="grid grid-cols-1 gap-4">
         {groups.map((g) => (
           <section key={g.code} className="card space-y-3">
             <div>

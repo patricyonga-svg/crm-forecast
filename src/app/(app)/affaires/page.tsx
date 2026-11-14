@@ -102,7 +102,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold">{params.vue === "relances" ? "Actions à faire" : "Affaires"}</h1>
         <div className="flex flex-wrap gap-2">
-          <div className="inline-flex overflow-hidden rounded-md border border-zinc-300 bg-white text-sm font-semibold">
+          <div className="hidden overflow-hidden rounded-md border border-zinc-300 bg-white text-sm font-semibold md:inline-flex">
             <Link href={withMode("liste")} className={`px-3 py-2 ${pipe ? "hover:bg-zinc-50" : "bg-brand-navy text-white"}`}>
               Liste
             </Link>
@@ -150,7 +150,51 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
 
       {error && <p className="text-sm text-red-700">Erreur de chargement : {error.message}</p>}
 
+      {/* Sur téléphone, les affaires s'affichent en fiches empilées (le pipe en colonnes reste pour l'ordinateur). */}
+      {params.mode !== "pipe" && (
+        <ul className="space-y-2 md:hidden">
+          {deals.map((d) => {
+            const late = !!d.next_action_date && d.next_action_date <= today;
+            return (
+              <li key={d.id}>
+                <Link href={`/affaires/${d.id}`} className="card block space-y-1.5 p-3 active:bg-zinc-50">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate font-semibold">{dealTitle(d, d.clients.name)}</div>
+                      <div className="truncate text-xs text-zinc-500">
+                        {d.name && d.name !== d.clients.name ? `${d.clients.name} · ` : ""}
+                        {d.country_code} · {d.sales_reps?.display_name ?? "sans porteur"}
+                      </div>
+                    </div>
+                    <div className="shrink-0 text-right font-semibold tabular-nums">{formatM(Number(d.quote_amount))}</div>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <StageBadge stage={d.stage} />
+                    {lateCollection(d, today) && <LateCollectionPill />}
+                    {d.expected_close_date && <span className="text-xs text-zinc-500">closing {formatDate(d.expected_close_date)}</span>}
+                  </div>
+                  {d.next_action && (
+                    <p className={`text-sm ${late ? "text-red-700" : "text-zinc-600"}`}>
+                      <span className="font-medium">{d.next_action_date ? formatDate(d.next_action_date) : "À faire"} :</span> {d.next_action}
+                    </p>
+                  )}
+                </Link>
+              </li>
+            );
+          })}
+          {deals.length === 0 && (
+            <li className="card py-8 text-center text-sm text-zinc-500">
+              <p>Aucune affaire ne correspond à ces filtres.</p>
+              <Link href={params.vue ? `/affaires?vue=${params.vue}` : "/affaires"} className="btn-secondary mt-3">
+                Effacer les filtres
+              </Link>
+            </li>
+          )}
+        </ul>
+      )}
+
       {pipe ? (
+        <div className={params.mode === "pipe" ? "" : "hidden md:block"}>
         <PipelineBoard
           key={JSON.stringify(params)}
           stages={f.etape.filter(isStage)}
@@ -172,8 +216,9 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
             late: !!d.expected_close_date && d.expected_close_date < today && !["won", "won_pending", "perdu"].includes(d.stage),
           }))}
         />
+        </div>
       ) : (
-      <div className="card overflow-x-auto p-0">
+      <div className="card hidden overflow-x-auto p-0 md:block">
         <table className="w-full text-sm">
           <thead className="border-b border-zinc-200 bg-zinc-50 text-left text-xs text-zinc-500">
             <tr>

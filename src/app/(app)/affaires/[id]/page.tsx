@@ -84,6 +84,8 @@ export default async function DealPage({ params, searchParams }: { params: Promi
   const myRep = refs.reps.find((r) => r.profile_id === profile?.id);
   const title = dealTitle(deal, client.name);
   const stageIndex = STAGES.findIndex((s) => s.value === deal.stage);
+  // Personne à joindre en un geste depuis le téléphone : contact principal, sinon premier contact de l'affaire.
+  const mainContact = byId.get(client.primary_contact_id ?? "") ?? dealContacts[0] ?? null;
 
   return (
     <div className="space-y-4">
@@ -110,8 +112,62 @@ export default async function DealPage({ params, searchParams }: { params: Promi
         </p>
       </div>
 
+      {/* Sur téléphone : prochaine action et raccourcis en haut de la fiche. */}
+      <div className="card space-y-3 p-3 lg:hidden">
+        {deal.next_action || deal.next_action_date ? (
+          <div className="flex items-start justify-between gap-3">
+            <p className={`text-sm ${deal.next_action_date && deal.next_action_date <= today ? "text-red-700" : ""}`}>
+              <span className="block text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                Prochaine action{deal.next_action_date ? ` · ${formatDate(deal.next_action_date)}` : ""}
+              </span>
+              {deal.next_action ?? "—"}
+            </p>
+            <form action={completeNextAction.bind(null, deal.id)}>
+              <SubmitButton className="btn-secondary shrink-0 px-3 py-1.5 text-xs" pendingLabel="…">
+                ✓ Faite
+              </SubmitButton>
+            </form>
+          </div>
+        ) : (
+          <p className="text-sm text-zinc-500">
+            Pas de prochaine action.{" "}
+            <a href="#infos" className="font-semibold text-brand-blue">
+              En prévoir une
+            </a>
+          </p>
+        )}
+        <div className="grid grid-cols-4 gap-2 text-center text-xs font-semibold">
+          {mainContact?.phone ? (
+            <a href={`tel:${mainContact.phone}`} className="rounded-lg border border-zinc-200 py-2">
+              Appeler
+            </a>
+          ) : (
+            <span className="rounded-lg border border-zinc-100 py-2 text-zinc-300">Appeler</span>
+          )}
+          {mainContact?.email ? (
+            <a href={`mailto:${mainContact.email}`} className="rounded-lg border border-zinc-200 py-2">
+              Email
+            </a>
+          ) : (
+            <span className="rounded-lg border border-zinc-100 py-2 text-zinc-300">Email</span>
+          )}
+          <Link href={`/affaires/${deal.id}?action=rdv#rdv`} className="rounded-lg border border-zinc-200 py-2">
+            RDV
+          </Link>
+          <a href="#historique" className="rounded-lg border border-zinc-200 py-2">
+            Note
+          </a>
+        </div>
+        {mainContact && (
+          <p className="text-xs text-zinc-500">
+            Contact : {contactName(mainContact)}
+            {mainContact.job_title && ` · ${mainContact.job_title}`}
+          </p>
+        )}
+      </div>
+
       {/* Avancement dans le cycle de vente */}
-      <ol className="flex overflow-x-auto rounded-xl border border-zinc-200 bg-white text-xs">
+      <ol className="hidden overflow-x-auto md:flex rounded-xl border border-zinc-200 bg-white text-xs">
         {STAGES.map((s, i) => {
           const done = deal.stage !== "perdu" && deal.stage !== "a_relancer" && i < stageIndex && i < 7;
           const current = s.value === deal.stage;
@@ -145,7 +201,7 @@ export default async function DealPage({ params, searchParams }: { params: Promi
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
-          <div className="card">
+          <div id="infos" className="card scroll-mt-4">
             <ActionForm action={updateDeal.bind(null, deal.id)}>
               <h2 className="font-medium">Informations</h2>
               {(deal.next_action || deal.next_action_date) && (
@@ -245,9 +301,9 @@ export default async function DealPage({ params, searchParams }: { params: Promi
             </details>
           </div>
 
-          <div className="card space-y-3">
+          <div id="historique" className="card scroll-mt-4 space-y-3">
             <h2 className="font-medium">Historique</h2>
-            <form action={addActivity.bind(null, deal.id)} className="grid gap-2 md:grid-cols-[8rem_10rem_1fr_auto]">
+            <form action={addActivity.bind(null, deal.id)} className="grid grid-cols-2 gap-2 md:grid-cols-[8rem_10rem_1fr_auto]">
               <select name="kind" className="input">
                 {Object.entries(KIND_LABEL).map(([v, l]) => (
                   <option key={v} value={v}>
@@ -256,8 +312,8 @@ export default async function DealPage({ params, searchParams }: { params: Promi
                 ))}
               </select>
               <input type="date" name="happened_on" defaultValue={today} className="input" />
-              <input name="body" placeholder="Ce qui s'est passé, ce qui est attendu…" className="input" required />
-              <SubmitButton pendingLabel="Ajout…">Ajouter</SubmitButton>
+              <input name="body" placeholder="Ce qui s'est passé, ce qui est attendu…" className="input col-span-2 md:col-span-1" required />
+              <SubmitButton className="btn col-span-2 md:col-span-1" pendingLabel="Ajout…">Ajouter</SubmitButton>
             </form>
             <ul className="divide-y divide-zinc-100">
               {(activities.data ?? []).map((a) => (
