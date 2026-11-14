@@ -4,9 +4,9 @@ import Image from "next/image";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
-function GoogleLogo() {
+function GoogleLogo({ size = 18 }: { size?: number }) {
   return (
-    <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true">
+    <svg viewBox="0 0 48 48" width={size} height={size} aria-hidden="true">
       <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z" />
       <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z" />
       <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z" />
@@ -15,9 +15,9 @@ function GoogleLogo() {
   );
 }
 
-export default function LoginPage() {
+/** Lance la connexion Google ; renvoie l'état d'attente pour le libellé du bouton. */
+function useGoogleSignIn() {
   const [pending, setPending] = useState(false);
-
   async function signIn() {
     setPending(true);
     const { error } = await createClient().auth.signInWithOAuth({
@@ -26,23 +26,37 @@ export default function LoginPage() {
     });
     if (error) setPending(false);
   }
+  return { pending, signIn };
+}
 
+const TAGLINE = "Affaires, forecast et objectifs de l'équipe commerciale, au même endroit.";
+
+export default function LoginPage() {
+  const { pending, signIn } = useGoogleSignIn();
   return (
-    <main className="relative flex min-h-screen flex-col items-center justify-center bg-white px-6">
-      <div className="flex w-full max-w-sm flex-col items-center text-center">
-        <Image src="/cerise.png" alt="" width={88} height={88} priority />
-        <h1 className="mt-3 font-brand text-5xl font-semibold tracking-wide text-brand-navy">Cerise</h1>
-        <p className="mt-3 text-sm text-zinc-500">Connectez-vous pour accéder à votre pipe commercial.</p>
+    <main className="relative flex min-h-screen items-center justify-center bg-background px-6">
+      <div className="w-full max-w-sm">
+        <div className="flex items-center gap-3">
+          <Image src="/cerise.png" alt="" width={48} height={48} priority />
+          <h1 className="font-brand text-4xl font-semibold tracking-wide text-brand-navy">Cerise</h1>
+        </div>
+        <div className="mt-5 h-0.5 w-10 rounded bg-[#b3122a]" />
+        <p className="mt-5 text-sm leading-relaxed text-zinc-500">{TAGLINE}</p>
         <button
           onClick={signIn}
           disabled={pending}
-          className="mt-8 flex w-full items-center justify-center gap-3 rounded-lg border border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-brand-navy shadow-sm transition hover:border-zinc-400 hover:shadow disabled:cursor-wait disabled:opacity-60"
+          className="mt-10 flex w-full items-stretch overflow-hidden rounded-lg bg-brand-navy text-sm font-semibold text-white shadow-sm transition hover:bg-zinc-800 disabled:cursor-wait disabled:opacity-70"
         >
-          <GoogleLogo />
-          {pending ? "Redirection vers Google…" : "Se connecter avec Google"}
+          <span className="flex w-12 items-center justify-center bg-white ring-1 ring-inset ring-zinc-200">
+            <GoogleLogo />
+          </span>
+          <span className="flex flex-1 items-center justify-between px-4 py-3">
+            {pending ? "Redirection…" : "Continuer avec Google"}
+            <span aria-hidden className="text-[#e8546a]">→</span>
+          </span>
         </button>
       </div>
-      <Image src="/susu-logo.png" alt="SUSU" width={74} height={24} className="absolute bottom-6 opacity-70" />
+      <Image src="/susu-logo.png" alt="SUSU" width={60} height={20} className="absolute bottom-6 right-6 opacity-50" />
     </main>
   );
 }
