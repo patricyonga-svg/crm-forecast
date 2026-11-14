@@ -82,6 +82,8 @@ export type Client = {
   sector: string | null;
   headcount: number | null;
   primary_contact_id: string | null;
+  is_premium: boolean;
+  premium_since: string | null;
 };
 
 export type Appointment = {
@@ -249,3 +251,6 @@ export function currentQuarter(today = new Date()): string {
 
 /** Nom affiché d'une affaire : son nom, sinon celui du client (affaires importées du Sheet). */
 export const dealTitle = (d: { name?: string | null }, clientName?: string | null) => d.name?.trim() || clientName || "Affaire sans nom";
+
+/** Rôles qui peuvent marquer un client Premium (contrôlé aussi en base, migration 0009). */
+export const canTagPremium = (role: string | null | undefined) => role === "admin" || role === "manager";

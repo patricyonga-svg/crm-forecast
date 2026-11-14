@@ -5,16 +5,16 @@ import { formatM } from "@/lib/reports";
 import { PipelineBoard } from "@/components/PipelineBoard";
 import { FilterBar } from "@/components/FilterBar";
 import { StageBadge } from "@/components/StageBadge";
-import { LateCollectionPill } from "@/components/charts";
+import { LateCollectionPill, PremiumBadge } from "@/components/charts";
 
 type Row = Deal & {
-  clients: { name: string };
+  clients: { name: string; is_premium: boolean };
   business_lines: { name: string } | null;
   sales_reps: { display_name: string } | null;
 };
 
 type Param = string | string[] | undefined;
-type Search = { q?: string; pays?: Param; etape?: Param; porteur?: Param; lob?: Param; trimestre?: Param; vente?: Param; vue?: string; mode?: string };
+type Search = { q?: string; pays?: Param; etape?: Param; porteur?: Param; lob?: Param; trimestre?: Param; vente?: Param; premium?: Param; vue?: string; mode?: string };
 
 /** Valeurs d'un filtre à choix multiple (?pays=SN&pays=CI), sans doublon ni valeur vide. */
 function list(p: Param): string[] {
@@ -29,7 +29,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
 
   let query = supabase
     .from("deal_amounts")
-    .select("*, clients!inner(name), business_lines(name), sales_reps!sales_rep_id(display_name)")
+    .select("*, clients!inner(name, is_premium), business_lines(name), sales_reps!sales_rep_id(display_name)")
     .order("expected_close_date", { ascending: true, nullsFirst: false })
     .limit(2000);
 
@@ -46,6 +46,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
   if (f.etape.length) query = query.in("stage", f.etape);
   if (f.lob.length) query = query.in("business_line_id", f.lob.map(Number));
   if (f.vente.length) query = query.in("sale_channel", f.vente);
+  if (list(params.premium).includes("oui")) query = query.eq("clients.is_premium", true);
   if (f.porteur.length) {
     const ids = f.porteur.filter((p) => p !== "aucun").map(Number).filter(Number.isFinite);
     const parts = [...(ids.length ? [`sales_rep_id.in.(${ids.join(",")})`] : []), ...(f.porteur.includes("aucun") ? ["sales_rep_id.is.null"] : [])];
@@ -118,6 +119,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
           { name: "pays", label: "Pays", options: refs.countries.map((c) => ({ value: c.code, label: c.name })) },
           { name: "etape", label: "Étape", options: STAGES.map((st) => ({ value: st.value, label: st.label })) },
           { name: "lob", label: "LoB", options: refs.lines.map((l) => ({ value: String(l.id), label: l.name })) },
+          { name: "premium", label: "Premium", options: [{ value: "oui", label: "★ Clients Premium" }] },
           { name: "vente", label: "Type de vente", options: SALE_CHANNELS.map((c) => ({ value: c.value, label: c.label })) },
           {
             name: "porteur",
@@ -160,7 +162,10 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
                 <Link href={`/affaires/${d.id}`} className="card block space-y-1.5 p-3 active:bg-zinc-50">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate font-semibold">{dealTitle(d, d.clients.name)}</div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate font-semibold">{dealTitle(d, d.clients.name)}</span>
+                        {d.clients.is_premium && <PremiumBadge compact />}
+                      </div>
                       <div className="truncate text-xs text-zinc-500">
                         {d.name && d.name !== d.clients.name ? `${d.clients.name} · ` : ""}
                         {d.country_code} · {d.sales_reps?.display_name ?? "sans porteur"}
@@ -202,6 +207,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
             id: d.id,
             title: dealTitle(d, d.clients.name),
             client: d.clients.name,
+            premium: d.clients.is_premium,
             amount: Number(d.quote_amount),
             stage: d.stage,
             rep: d.sales_reps?.display_name ?? null,
@@ -240,6 +246,11 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
                   <Link href={`/affaires/${d.id}`} className="font-medium hover:underline">
                     {dealTitle(d, d.clients.name)}
                   </Link>
+                  {d.clients.is_premium && (
+                    <span className="ml-1.5 align-middle">
+                      <PremiumBadge compact />
+                    </span>
+                  )}
                   {d.name && d.name !== d.clients.name && <div className="text-xs text-zinc-500">{d.clients.name}</div>}
                 </td>
                 <td className="px-3 py-2">{d.country_code}</td>

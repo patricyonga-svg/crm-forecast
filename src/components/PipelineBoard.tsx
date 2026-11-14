@@ -7,13 +7,14 @@ import { CARDS_STATUS, formatDate, LEAD_STAGES, STAGE_ACCENT, STAGES, type Cards
 import { formatM, initials } from "@/lib/reports";
 import { getBookingData, moveDeal, type MoveExtra } from "@/app/(app)/affaires/actions";
 import { BookingForm } from "./BookingForm";
-import { LateCollectionPill } from "./charts";
+import { LateCollectionPill, PremiumBadge } from "./charts";
 import { QuoteUpload } from "./QuoteUpload";
 
 export type BoardCard = {
   id: string;
   title: string;
   client: string;
+  premium?: boolean;
   amount: number;
   stage: Stage;
   rep: string | null;
@@ -355,14 +356,17 @@ function Column({
               e.dataTransfer.effectAllowed = "move";
             }}
             onDragEnd={onCardDragEnd}
-            className={`cursor-grab rounded-lg border border-zinc-200 bg-white p-2.5 text-sm shadow-sm hover:border-brand-blue active:cursor-grabbing ${
-              c.late ? "border-l-4 border-l-red-500" : ""
-            } ${dragging === c.id ? "opacity-40" : ""}`}
+            className={`cursor-grab rounded-lg border bg-white p-2.5 text-sm shadow-sm hover:border-brand-blue active:cursor-grabbing ${
+              c.premium ? "border-amber-300" : "border-zinc-200"
+            } ${c.late ? "border-l-4 border-l-red-500" : c.premium ? "border-l-4 border-l-amber-400" : ""} ${dragging === c.id ? "opacity-40" : ""}`}
           >
             {showStage && STAGE_SHORT[c.stage] && <div className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">{STAGE_SHORT[c.stage]}</div>}
-            <Link href={`/affaires/${c.id}`} className="block font-semibold leading-snug hover:underline" draggable={false}>
-              {c.title}
-            </Link>
+            <div className="flex items-start justify-between gap-1.5">
+              <Link href={`/affaires/${c.id}`} className="block font-semibold leading-snug hover:underline" draggable={false}>
+                {c.title}
+              </Link>
+              {c.premium && <PremiumBadge compact />}
+            </div>
             {c.title !== c.client && <div className="truncate text-xs text-zinc-600">{c.client}</div>}
             {c.lateCollection && (
               <div className="mt-1">

@@ -47,7 +47,7 @@ export function MobileNav({ overdue }: { overdue: number }) {
     { href: "/affaires?vue=relances", label: "À faire", icon: ICONS.actions, active: pathname === "/affaires" && vue === "relances", badge: overdue },
     { href: "/ajouter", label: "Ajouter", icon: ICONS.add, active: pathname.startsWith("/ajouter"), primary: true },
     { href: "/agenda", label: "Agenda", icon: ICONS.agenda, active: pathname.startsWith("/agenda") },
-    { href: "/rapports", label: "Synthèse", icon: ICONS.reports, active: pathname.startsWith("/rapports") },
+    { href: "/rapports", label: "Synthèse", icon: ICONS.reports, active: pathname.startsWith("/rapports") || pathname.startsWith("/premium") },
   ];
   return (
     <nav

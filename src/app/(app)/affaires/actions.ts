@@ -346,6 +346,18 @@ export async function updateClient(clientId: string, dealId: string, _prev: Form
   return { ok: "Enregistré." };
 }
 
+/** Pose ou retire la marque Premium d'un client (administrateurs et managers). */
+export async function setClientPremium(clientId: string, dealId: string, premium: boolean) {
+  const supabase = await createClient();
+  const { data, error } = await supabase.from("clients").update({ is_premium: premium }).eq("id", clientId).select("id");
+  if (error) return { error: error.message };
+  if (!data?.length) return { error: "Vous ne pouvez pas modifier cette entreprise." };
+  revalidatePath(`/affaires/${dealId}`);
+  revalidatePath("/affaires");
+  revalidatePath("/premium");
+  return { ok: premium ? "Client marqué Premium." : "Marque Premium retirée." };
+}
+
 export async function addContact(dealId: string, clientId: string, _prev: FormState, form: FormData): Promise<FormState> {
   try {
     const supabase = await createClient();
