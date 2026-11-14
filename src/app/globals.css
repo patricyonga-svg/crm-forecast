@@ -26,14 +26,19 @@
   --color-brand-teal: #33cedb;
 }
 
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
 }
 
+/* 16 px sur téléphone : en dessous, l'iPhone zoome la page à chaque saisie. */
 .input {
-  @apply w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm focus:border-brand-blue focus:outline-none;
+  @apply w-full rounded-md border border-zinc-300 bg-white px-3 py-2 text-base focus:border-brand-blue focus:outline-none md:text-sm;
 }
 
 .btn {

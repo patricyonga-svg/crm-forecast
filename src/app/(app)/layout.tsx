@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getSession } from "@/lib/session";
 import { Suspense } from "react";
 import { MainNav } from "@/components/MainNav";
+import { MobileNav } from "@/components/MobileNav";
 import { UserMenu } from "@/components/UserMenu";
 import { signOut } from "./actions";
 
@@ -27,15 +28,17 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ];
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="bg-brand-navy text-white">
+      <header className="bg-brand-navy pt-[env(safe-area-inset-top)] text-white">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-2 py-2 pl-3 pr-4">
           <Link href="/affaires" className="flex items-center gap-1.5">
             <Image src="/cerise.png" alt="" width={34} height={34} priority />
             <span className="font-brand text-2xl font-semibold tracking-wide">Cerise</span>
           </Link>
-          <Suspense>
-            <MainNav settings={settings} overdue={overdue ?? 0} />
-          </Suspense>
+          <div className="hidden md:block">
+            <Suspense>
+              <MainNav settings={settings} overdue={overdue ?? 0} />
+            </Suspense>
+          </div>
           <div className="ml-auto flex items-center gap-2">
             <form action="/affaires" className="hidden md:block" role="search">
               <input
@@ -46,10 +49,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                 className="w-52 rounded-md border border-white/10 bg-white/10 px-3 py-1.5 text-sm text-white placeholder:text-white/50 focus:border-white/40 focus:bg-white/15 focus:outline-none"
               />
             </form>
-            <Link href="/affaires/nouvelle" className="rounded-md bg-brand-orange px-3 py-1.5 text-sm font-semibold text-white hover:brightness-110">
+            <Link href="/affaires/nouvelle" className="hidden rounded-md md:block bg-brand-orange px-3 py-1.5 text-sm font-semibold text-white hover:brightness-110">
               + Affaire
             </Link>
-            <UserMenu name={profile?.full_name ?? user.email ?? "Mon compte"} signOut={signOut} />
+            <UserMenu name={profile?.full_name ?? user.email ?? "Mon compte"} signOut={signOut} links={settings} />
           </div>
         </div>
       </header>
@@ -58,10 +61,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           Votre compte n&apos;est pas encore rattaché à un pays. Un administrateur doit le compléter pour que vous voyiez vos affaires.
         </div>
       )}
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6">{children}</main>
-      <footer className="flex justify-end px-4 pb-4">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-4 md:py-6">{children}</main>
+      <footer className="hidden justify-end px-4 pb-4 md:flex">
         <Image src="/susu-logo.png" alt="SUSU" width={74} height={24} />
       </footer>
+      {/* Place pour la barre d'onglets du bas sur téléphone. */}
+      <div className="h-[calc(4rem+env(safe-area-inset-bottom))] md:hidden" />
+      <Suspense>
+        <MobileNav overdue={overdue ?? 0} />
+      </Suspense>
     </div>
   );
 }

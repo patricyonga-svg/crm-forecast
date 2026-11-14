@@ -13,6 +13,7 @@ export function MainNav({ settings, overdue }: { settings: { href: string; label
   const items: Item[] = [
     { href: "/affaires", label: "Affaires" },
     { href: "/affaires?vue=relances", label: "Actions à faire", badge: overdue },
+    { href: "/agenda", label: "Agenda" },
   ];
   const reports = [
     { href: "/rapports", label: "Rapport AE" },

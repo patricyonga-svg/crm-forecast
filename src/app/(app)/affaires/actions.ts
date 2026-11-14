@@ -486,6 +486,7 @@ export async function bookAppointment(dealId: string, _prev: FormState, form: Fo
     });
     revalidatePath(`/affaires/${dealId}`);
     revalidatePath("/affaires");
+    revalidatePath("/agenda");
     return { ok: message };
   } catch (e) {
     return fail(e);
@@ -585,6 +586,7 @@ export async function markAppointmentDone(dealId: string, appointmentId: string,
       author_id: user.id,
     });
     revalidatePath(`/affaires/${dealId}`);
+    revalidatePath("/agenda");
     return { ok: "Rendez-vous marqué comme effectué." };
   } catch (e) {
     return fail(e);
