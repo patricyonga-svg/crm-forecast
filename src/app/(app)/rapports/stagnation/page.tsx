@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FilterBar } from "@/components/FilterBar";
+import { HistoryNotice } from "@/components/history-charts";
 import { Avatar } from "@/components/charts";
 import { Dot } from "@/components/history-charts";
 import { StageBadge } from "@/components/StageBadge";
@@ -18,7 +19,7 @@ export default async function StagnationPage({ searchParams }: { searchParams: P
   const params = await searchParams;
   const seuil = Number(list(params.seuil).find((s) => THRESHOLDS.includes(Number(s))) ?? DEFAULT_THRESHOLD);
   const etapes = list(params.etape).filter((s): s is Stage => WATCHED.includes(s as Stage));
-  const { refs, deals, tl, keep, clientById, repName, now, today, historyStart } = await loadHistory(params);
+  const { refs, deals, tl, keep, clientById, repName, now, today, historyStart, historyMissing } = await loadHistory(params);
 
   const rows = deals
     .filter((d) => WATCHED.includes(d.stage) && keep(d))
@@ -61,6 +62,8 @@ export default async function StagnationPage({ searchParams }: { searchParams: P
           ...commonFilters(refs),
         ]}
       />
+
+      <HistoryNotice missing={historyMissing} />
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {perStage.map((p) => (

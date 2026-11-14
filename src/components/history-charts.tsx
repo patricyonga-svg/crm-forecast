@@ -210,3 +210,13 @@ export function Dot({ tone }: { tone: "ok" | "warn" | "bad" }) {
   const c = tone === "ok" ? "bg-emerald-500" : tone === "warn" ? "bg-amber-500" : "bg-red-600";
   return <span className={`inline-block h-2.5 w-2.5 shrink-0 rounded-full ${c}`} aria-hidden />;
 }
+
+/** Avertissement quand l'historique des affaires n'a pas pu être lu. */
+export function HistoryNotice({ missing }: { missing: boolean }) {
+  if (!missing) return null;
+  return (
+    <div className="rounded-md bg-amber-50 px-4 py-2 text-sm text-amber-900">
+      L&apos;historique des affaires n&apos;est pas accessible avec ce compte : ce rapport ne peut pas être calculé. Prévenez un administrateur.
+    </div>
+  );
+}

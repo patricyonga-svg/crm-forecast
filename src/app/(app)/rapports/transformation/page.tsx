@@ -1,4 +1,5 @@
 import { FilterBar } from "@/components/FilterBar";
+import { HistoryNotice } from "@/components/history-charts";
 import { Avatar, CountryBadge, Kpi } from "@/components/charts";
 import { HBar } from "@/components/history-charts";
 import { currentQuarter, quarterRange, type Stage } from "@/lib/domain";
@@ -15,7 +16,7 @@ export default async function ConversionPage({ searchParams }: { searchParams: P
   const params = await searchParams;
   const trimestre = list(params.trimestre).find((t) => /^\d{4}-T[1-4]$/.test(t)) ?? currentQuarter();
   const { from, to } = quarterRange(trimestre);
-  const { refs, deals, tl, keep, repName } = await loadHistory(params);
+  const { refs, deals, tl, keep, repName, historyMissing } = await loadHistory(params);
 
   const decided = deals.filter((d) => keep(d) && DECIDED.includes(d.stage) && d.expected_close_date && d.expected_close_date >= from && d.expected_close_date <= to);
 
@@ -56,6 +57,8 @@ export default async function ConversionPage({ searchParams }: { searchParams: P
         mine={false}
         filters={[{ name: "trimestre", label: "Trimestre", single: true, options: quarterOptions() }, ...commonFilters(refs)]}
       />
+
+      <HistoryNotice missing={historyMissing} />
 
       <div className="grid gap-3 md:grid-cols-3">
         <Kpi label="Gagnées" value={team.won} sub={`${formatM(team.wonAmount)} XOF`} />

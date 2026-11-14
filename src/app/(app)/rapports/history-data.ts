@@ -70,9 +70,10 @@ export async function loadHistory(params: Search) {
   ]);
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const reader = key ? createAdminClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, key, { auth: { persistSession: false } }) : supabase;
-  const audit = await all<AuditRow>((a, b) =>
-    reader.from("audit_log").select(AUDIT_COLUMNS).eq("table_name", "deals").order("id").range(a, b).returns<AuditRow[]>(),
-  );
+  const readAudit = (client: typeof supabase) =>
+    all<AuditRow>((a, b) => client.from("audit_log").select(AUDIT_COLUMNS).eq("table_name", "deals").order("id").range(a, b).returns<AuditRow[]>());
+  // Clé de service invalide : on retombe sur les droits de l'utilisateur plutôt que de bloquer la page.
+  const audit = await readAudit(reader as typeof supabase).catch(() => readAudit(supabase).catch(() => [] as AuditRow[]));
 
   const visible = new Set(deals.map((d) => d.id));
   const tl = timeline(audit.filter((r) => visible.has(r.row_id)).map(toEvent));
@@ -95,6 +96,8 @@ export async function loadHistory(params: Search) {
     deals,
     tl,
     historyStart: historyStart ? historyStart.slice(0, 10) : null,
+    // Journal illisible (clé de service absente et rôle sans accès) : les rapports historiques seraient faux.
+    historyMissing: deals.length > 0 && tl.size === 0,
     clientById,
     repName,
     keep,

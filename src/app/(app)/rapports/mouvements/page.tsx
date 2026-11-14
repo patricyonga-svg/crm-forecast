@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FilterBar } from "@/components/FilterBar";
+import { HistoryNotice } from "@/components/history-charts";
 import { Legend, Swatch } from "@/components/charts";
 import { Waterfall, type Step } from "@/components/history-charts";
 import { dealTitle, quarterRange } from "@/lib/domain";
@@ -46,7 +47,7 @@ function periods(historyStart: string, today: string) {
 
 export default async function MovesPage({ searchParams }: { searchParams: Promise<Search> }) {
   const params = await searchParams;
-  const { refs, tl, historyStart, keepState, deals, clientById, repName, now, today } = await loadHistory(params);
+  const { refs, tl, historyStart, keepState, deals, clientById, repName, now, today, historyMissing } = await loadHistory(params);
   const options = periods(historyStart ?? today, today);
   const period = options.find((o) => list(params.periode).includes(o.value)) ?? options[0];
 
@@ -90,6 +91,8 @@ export default async function MovesPage({ searchParams }: { searchParams: Promis
         mine={false}
         filters={[{ name: "periode", label: "Période", single: true, options: options.map((o) => ({ value: o.value, label: o.label })) }, ...commonFilters(refs)]}
       />
+
+      <HistoryNotice missing={historyMissing} />
 
       <section className="card space-y-4">
         <Legend

@@ -1,4 +1,5 @@
 import { FilterBar } from "@/components/FilterBar";
+import { HistoryNotice } from "@/components/history-charts";
 import { Kpi, Legend, StatusPill } from "@/components/charts";
 import { LineChart, SeriesSwatch } from "@/components/history-charts";
 import { currentQuarter, quarterRange } from "@/lib/domain";
@@ -14,7 +15,7 @@ export default async function EvolutionPage({ searchParams }: { searchParams: Pr
   const params = await searchParams;
   const trimestre = list(params.trimestre).find((t) => /^\d{4}-T[1-4]$/.test(t)) ?? currentQuarter();
   const { from, to, months } = quarterRange(trimestre);
-  const { supabase, refs, filters, tl, historyStart, keepState, now } = await loadHistory(params);
+  const { supabase, refs, filters, tl, historyStart, keepState, now, historyMissing } = await loadHistory(params);
 
   const [{ data: objectives }, { data: settingsRow }] = await Promise.all([
     supabase.from("rep_objectives").select("sales_rep_id, month, amount").gte("month", from).lte("month", to).returns<RepObjective[]>(),
@@ -64,6 +65,8 @@ export default async function EvolutionPage({ searchParams }: { searchParams: Pr
         mine={false}
         filters={[{ name: "trimestre", label: "Trimestre", single: true, options: quarterOptions() }, ...commonFilters(refs)]}
       />
+
+      <HistoryNotice missing={historyMissing} />
 
       {last && (
         <div className="grid gap-3 md:grid-cols-3">
