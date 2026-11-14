@@ -3,7 +3,8 @@ import { getReferences, getSession } from "@/lib/session";
 import { currentQuarter, quarterRange } from "@/lib/domain";
 import { ObjectivesGrid } from "@/components/ObjectivesGrid";
 import { QuarterPicker } from "@/components/QuarterPicker";
-import { addRep, saveObjectives, setRepActive } from "../actions";
+import { ActionForm } from "@/components/ActionForm";
+import { addRep, renameRep, saveObjectives, setRepActive } from "../actions";
 
 const MONTH = new Intl.DateTimeFormat("fr-FR", { month: "long" });
 
@@ -42,35 +43,62 @@ export default async function ObjectivesPage({ searchParams }: { searchParams: P
           <section key={c.code} className="card space-y-4">
             <h2 className="text-lg font-bold">{c.name}</h2>
             {reps.length ? (
-              <form action={saveObjectives} className="space-y-3">
-                <ObjectivesGrid reps={reps.map((r) => ({ id: r.id, name: r.display_name }))} months={monthOptions} initial={initial} />
-                <button className="btn">Enregistrer les objectifs de {c.name}</button>
-              </form>
+              <ActionForm action={saveObjectives} submitLabel={`Enregistrer les objectifs de ${c.name}`}>
+                {/* Clé : la grille repart des valeurs enregistrées quand la liste des commerciaux ou le trimestre change. */}
+                <ObjectivesGrid
+                  key={`${trimestre}-${reps.map((r) => `${r.id}:${r.display_name}`).join(",")}`}
+                  reps={reps.map((r) => ({ id: r.id, name: r.display_name }))}
+                  months={monthOptions}
+                  initial={initial}
+                />
+              </ActionForm>
             ) : (
               <p className="text-sm text-zinc-500">Aucun commercial actif.</p>
             )}
             {isAdmin && (
               <details className="text-sm">
                 <summary className="cursor-pointer text-zinc-600">Gérer les commerciaux de {c.name}</summary>
-                <div className="mt-3 space-y-3">
-                  <form action={addRep} className="flex flex-wrap gap-2">
+                <div className="mt-3 space-y-4">
+                  <ActionForm action={addRep} submitLabel="Ajouter" pendingLabel="Ajout…" buttonClassName="btn-secondary" className="flex flex-wrap items-center gap-2" resetOnSuccess>
                     <input type="hidden" name="country_code" value={c.code} />
                     <input name="display_name" placeholder="Nom (ex. À recruter)" className="input max-w-xs" required />
-                    <button className="btn-secondary">Ajouter</button>
-                  </form>
-                  <ul className="flex flex-wrap gap-2">
+                  </ActionForm>
+                  <ul className="divide-y divide-zinc-100 rounded-lg border border-zinc-200">
                     {[...reps, ...inactive].map((r) => (
-                      <li key={r.id}>
-                        <form action={setRepActive} className="flex items-center gap-2 rounded-full border border-zinc-200 py-1 pl-3 pr-1">
+                      <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                        <ActionForm
+                          action={renameRep}
+                          submitLabel="Corriger le nom"
+                          pendingLabel="Correction…"
+                          buttonClassName="btn-secondary px-3 py-1.5 text-xs"
+                          className="flex min-w-0 flex-1 flex-wrap items-center gap-2"
+                        >
+                          <input type="hidden" name="id" value={r.id} />
+                          <input
+                            key={r.display_name}
+                            name="display_name"
+                            defaultValue={r.display_name}
+                            required
+                            aria-label={`Nom de ${r.display_name}`}
+                            className={`input max-w-64 py-1.5 ${r.active ? "" : "text-zinc-400 line-through"}`}
+                          />
+                        </ActionForm>
+                        <ActionForm
+                          action={setRepActive}
+                          submitLabel={r.active ? "Désactiver" : "Réactiver"}
+                          pendingLabel="…"
+                          buttonClassName="rounded-full px-3 py-1.5 text-xs text-zinc-500 hover:bg-zinc-100"
+                          className="flex items-center"
+                        >
                           <input type="hidden" name="id" value={r.id} />
                           <input type="hidden" name="active" value={String(!r.active)} />
-                          <span className={r.active ? "" : "text-zinc-400 line-through"}>{r.display_name}</span>
-                          <button className="rounded-full px-2 text-xs text-zinc-500 hover:bg-zinc-100">{r.active ? "Désactiver" : "Réactiver"}</button>
-                        </form>
+                        </ActionForm>
                       </li>
                     ))}
                   </ul>
-                  <p className="text-xs text-zinc-500">Un commercial désactivé n&apos;apparaît plus dans la saisie ; ses affaires et son historique sont conservés.</p>
+                  <p className="text-xs text-zinc-500">
+                    Corriger un nom le met à jour partout (affaires, objectifs, rapports). Un commercial désactivé n&apos;apparaît plus dans la saisie ; ses affaires et son historique sont conservés.
+                  </p>
                 </div>
               </details>
             )}

@@ -1,4 +1,5 @@
 import { getSession } from "@/lib/session";
+import { ActionForm } from "@/components/ActionForm";
 import { savePipelineSettings } from "../actions";
 
 export default async function PipelineSettingsPage() {
@@ -17,7 +18,8 @@ export default async function PipelineSettingsPage() {
         <p className="text-sm text-zinc-600">Ces deux multiples fixent le niveau minimal de forecast et de pipe attendu de chaque commercial et de chaque pays.</p>
       </div>
 
-      <form action={savePipelineSettings} className="card space-y-5">
+      {isAdmin ? (
+        <ActionForm action={savePipelineSettings} className="card space-y-5">
         <label className="block space-y-1">
           <span className="font-semibold">1. Multiple de forecast</span>
           <span className="block text-sm text-zinc-600">Forecast minimal = objectif du trimestre × ce multiple.</span>
@@ -32,8 +34,26 @@ export default async function PipelineSettingsPage() {
           Exemple avec les valeurs enregistrées : pour un objectif de 45 M XOF, il faut au moins <strong>{example(45 * fm)} M XOF</strong> de forecast et{" "}
           <strong>{example(45 * fm * pm)} M XOF</strong> de pipe.
         </p>
-        {isAdmin ? <button className="btn">Enregistrer</button> : <p className="text-sm text-zinc-500">Seul un administrateur peut modifier ces valeurs.</p>}
-      </form>
+        </ActionForm>
+      ) : (
+        <div className="card space-y-5">
+        <label className="block space-y-1">
+          <span className="font-semibold">1. Multiple de forecast</span>
+          <span className="block text-sm text-zinc-600">Forecast minimal = objectif du trimestre × ce multiple.</span>
+          <input name="forecast_multiple" defaultValue={fm} inputMode="decimal" className="input max-w-32" disabled={!isAdmin} required />
+        </label>
+        <label className="block space-y-1">
+          <span className="font-semibold">2. Multiple de pipe</span>
+          <span className="block text-sm text-zinc-600">Pipe minimal = forecast minimal × ce multiple.</span>
+          <input name="pipe_multiple" defaultValue={pm} inputMode="decimal" className="input max-w-32" disabled={!isAdmin} required />
+        </label>
+        <p className="rounded-md bg-zinc-50 p-3 text-sm text-zinc-700">
+          Exemple avec les valeurs enregistrées : pour un objectif de 45 M XOF, il faut au moins <strong>{example(45 * fm)} M XOF</strong> de forecast et{" "}
+          <strong>{example(45 * fm * pm)} M XOF</strong> de pipe.
+        </p>
+          <p className="text-sm text-zinc-500">Seul un administrateur peut modifier ces valeurs.</p>
+        </div>
+      )}
 
       <div className="card space-y-2 text-sm text-zinc-700">
         <h2 className="font-semibold text-zinc-900">Définitions utilisées dans les rapports</h2>

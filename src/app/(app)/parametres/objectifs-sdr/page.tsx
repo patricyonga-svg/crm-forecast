@@ -5,6 +5,7 @@ import { currentQuarter, quarterRange } from "@/lib/domain";
 import { SdrObjectivesGrid } from "@/components/SdrObjectivesGrid";
 import { QuarterPicker } from "@/components/QuarterPicker";
 import type { SdrObjective } from "@/lib/sdr";
+import { ActionForm } from "@/components/ActionForm";
 import { saveSdrObjectives } from "../actions";
 
 const MONTH = new Intl.DateTimeFormat("fr-FR", { month: "long" });
@@ -54,10 +55,14 @@ export default async function SdrObjectivesPage({ searchParams }: { searchParams
           <section key={c.code} className="card space-y-4">
             <h2 className="text-lg font-bold">{c.name}</h2>
             {sdrs.length ? (
-              <form action={saveSdrObjectives} className="space-y-3">
-                <SdrObjectivesGrid reps={sdrs.map((r) => ({ id: r.id, name: r.display_name }))} months={monthOptions} initial={initial} />
-                <button className="btn">Enregistrer les objectifs SDR de {c.name}</button>
-              </form>
+              <ActionForm action={saveSdrObjectives} submitLabel={`Enregistrer les objectifs SDR de ${c.name}`}>
+                <SdrObjectivesGrid
+                  key={`${trimestre}-${sdrs.map((r) => `${r.id}:${r.display_name}`).join(",")}`}
+                  reps={sdrs.map((r) => ({ id: r.id, name: r.display_name }))}
+                  months={monthOptions}
+                  initial={initial}
+                />
+              </ActionForm>
             ) : (
               <p className="text-sm text-zinc-500">
                 Aucun SDR dans ce pays. Pour en désigner un, ouvrez{" "}
