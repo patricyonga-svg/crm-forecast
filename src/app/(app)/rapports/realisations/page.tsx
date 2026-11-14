@@ -80,7 +80,16 @@ export default async function AchievementsPage({ searchParams }: { searchParams:
                   <Rate rate={ratio(g.done, g.objective)} expected={quarterElapsed || 1} />
                 </p>
               </div>
-              <table className="w-full text-sm">
+              {/* Grille fixe : mêmes largeurs de colonnes pour tous les pays. */}
+              <div className="overflow-x-auto">
+              <table className="w-full min-w-[36rem] table-fixed text-sm">
+                <colgroup>
+                  <col className="w-44" />
+                  <col />
+                  <col className="w-20" />
+                  <col className="w-20" />
+                  <col className="w-36" />
+                </colgroup>
                 <thead className="text-xs text-zinc-500">
                   <tr>
                     <th className="pb-1 text-left font-medium">Commercial</th>
@@ -93,8 +102,10 @@ export default async function AchievementsPage({ searchParams }: { searchParams:
                 <tbody>
                   {g.rows.map((r) => (
                     <tr key={r.key} className={r.noTarget ? "text-zinc-500" : ""}>
-                      <td className="py-1.5 pr-2 font-semibold">{r.name}</td>
-                      <td className="w-2/5 py-1.5 pr-2">
+                      <td className="truncate py-1.5 pr-2 font-semibold" title={r.name}>
+                        {r.name}
+                      </td>
+                      <td className="py-1.5 pr-2">
                         <ProgressBar value={r.monthDone} target={r.monthObjective} marker={monthElapsed} />
                       </td>
                       <td className="py-1.5 pl-1 text-right">
@@ -108,6 +119,7 @@ export default async function AchievementsPage({ searchParams }: { searchParams:
                   ))}
                 </tbody>
               </table>
+              </div>
             </section>
           );
         })}
