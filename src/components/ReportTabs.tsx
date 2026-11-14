@@ -8,6 +8,11 @@ const AE_TABS = [
   { href: "/rapports/realisations", label: "Réalisations" },
   { href: "/rapports/pipeline", label: "Pipeline" },
   { href: "/rapports/entonnoir", label: "Entonnoir" },
+  { href: "/rapports/evolution", label: "Évolution" },
+  { href: "/rapports/mouvements", label: "Mouvements" },
+  { href: "/rapports/encaissements", label: "Encaissements" },
+  { href: "/rapports/stagnation", label: "Stagnation" },
+  { href: "/rapports/transformation", label: "Transformation" },
 ];
 
 const SDR_TABS = [

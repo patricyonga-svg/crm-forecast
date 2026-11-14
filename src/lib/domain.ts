@@ -139,7 +139,7 @@ export const isSaleChannel = (v: unknown): v is SaleChannel => SALE_CHANNELS.som
 /** Étapes pour lesquelles un devis joint est obligatoire au moment d'y passer. */
 export const QUOTE_REQUIRED_STAGES: Stage[] = ["forecast", "won_pending", "won"];
 
-const addDays = (iso: string, days: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
+export const addDays = (iso: string, days: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 
 /**
  * « Encaissement en retard » (Won Pending) : la date prévisionnelle d'encaissement est dépassée,
