@@ -7,7 +7,7 @@ import { CARDS_STATUS, formatDate, LEAD_STAGES, STAGE_ACCENT, STAGES, type Cards
 import { formatM, initials } from "@/lib/reports";
 import { getBookingData, moveDeal, type MoveExtra } from "@/app/(app)/affaires/actions";
 import { BookingForm } from "./BookingForm";
-import { LateCollectionPill, PremiumBadge } from "./charts";
+import { CollectedPill, LateCollectionPill, PremiumBadge } from "./charts";
 import { QuoteUpload } from "./QuoteUpload";
 
 export type BoardCard = {
@@ -27,7 +27,11 @@ export type BoardCard = {
   created: string;
   paymentDate: string | null;
   lateCollection: boolean;
+  /** Montant déjà encaissé (somme des paiements). */
+  collected: number;
 };
+
+const money = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 });
 
 type Dialog =
   | { kind: "rdv"; card: BoardCard; data: { contacts: Contact[]; reps: { id: number; display_name: string }[]; defaultRep: number | null } | null }
@@ -368,11 +372,19 @@ function Column({
               {c.premium && <PremiumBadge compact />}
             </div>
             {c.title !== c.client && <div className="truncate text-xs text-zinc-600">{c.client}</div>}
-            {c.lateCollection && (
-              <div className="mt-1">
-                <LateCollectionPill
-                  title={c.paymentDate ? `Encaissement prévu le ${formatDate(c.paymentDate)}, date dépassée` : "Closing de plus de 30 jours, sans date prévisionnelle d'encaissement"}
-                />
+            {(c.lateCollection || (c.stage === "won_pending" && c.collected > 0)) && (
+              <div className="mt-1 flex flex-wrap gap-1">
+                {c.lateCollection && (
+                  <LateCollectionPill
+                    title={c.paymentDate ? `Encaissement prévu le ${formatDate(c.paymentDate)}, date dépassée` : "Closing de plus de 30 jours, sans date prévisionnelle d'encaissement"}
+                  />
+                )}
+                {c.stage === "won_pending" && c.collected > 0 && (
+                  <CollectedPill
+                    label={formatM(c.collected)}
+                    title={`${money.format(c.collected)} XOF encaissés sur ${money.format(c.amount)} XOF, reste ${money.format(Math.max(0, c.amount - c.collected))} XOF`}
+                  />
+                )}
               </div>
             )}
             <div className="mt-1 flex items-baseline justify-between gap-2">
@@ -401,6 +413,11 @@ function Column({
                   <span>{formatDate(c.close)}</span>
                 ))}
             </div>
+            {c.stage === "won_pending" && c.collected > 0 && c.amount > 0 && (
+              <div className="mt-2 h-1 overflow-hidden rounded-full bg-zinc-100" aria-hidden>
+                <div className="h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, (c.collected / c.amount) * 100)}%` }} />
+              </div>
+            )}
           </article>
         ))}
         {cards.length === 0 && <p className="px-1 py-4 text-center text-xs text-zinc-400">Déposez une affaire ici</p>}
