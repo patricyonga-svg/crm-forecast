@@ -2,46 +2,49 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { currentReport, REPORT_GROUPS } from "@/lib/report-menu";
 
-export const AE_TABS = [
-  { href: "/rapports", label: "Synthèse" },
-  { href: "/rapports/realisations", label: "Réalisations" },
-  { href: "/rapports/pipeline", label: "Pipeline" },
-  { href: "/rapports/entonnoir", label: "Entonnoir" },
-  { href: "/rapports/evolution", label: "Évolution" },
-  { href: "/rapports/mouvements", label: "Mouvements" },
-  { href: "/rapports/encaissements", label: "Encaissements" },
-  { href: "/rapports/stagnation", label: "Stagnation" },
-  { href: "/rapports/transformation", label: "Transformation" },
-];
-
-export const SDR_TABS = [
-  { href: "/rapports/sdr", label: "Réalisations SDR" },
-  { href: "/rapports/sdr/rendez-vous", label: "Rendez-vous" },
-];
-
-/** Onglets du rapport AE (ventes) ou du rapport SDR (prospection), selon la page. */
+/**
+ * Navigation des rapports sur téléphone (sur ordinateur, c'est le menu « Rapports ») :
+ * une ligne de familles, puis les rapports de la famille affichée.
+ */
 export function ReportTabs() {
   const pathname = usePathname();
   const trimestre = useSearchParams().get("trimestre");
-  const sdr = pathname.startsWith("/rapports/sdr");
-  const tabs = sdr ? SDR_TABS : AE_TABS;
+  const current = currentReport(pathname);
+  const link = (href: string) => (trimestre ? `${href}?trimestre=${trimestre}` : href);
   return (
-    // Sur ordinateur, les rapports sont choisis dans le menu « Rapports » : les onglets ne servent que sur téléphone.
-    <nav className="flex items-end gap-1 overflow-x-auto border-b border-zinc-200 md:hidden">
-      <span className="mr-2 whitespace-nowrap px-1 py-2 text-xs font-bold uppercase tracking-wider text-zinc-400">{sdr ? "Rapport SDR" : "Rapport AE"}</span>
-      {tabs.map((t) => {
-        const active = pathname === t.href;
-        return (
-          <Link
-            key={t.href}
-            href={trimestre ? `${t.href}?trimestre=${trimestre}` : t.href}
-            className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm font-semibold ${active ? "border-[#2a78d6] text-[#14213d]" : "border-transparent text-zinc-500 hover:text-zinc-900"}`}
-          >
-            {t.label}
-          </Link>
-        );
-      })}
-    </nav>
+    <div className="space-y-2 md:hidden">
+      <nav aria-label="Familles de rapports" className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+        {REPORT_GROUPS.map((g) => {
+          const active = current?.group.label === g.label;
+          return (
+            <Link
+              key={g.label}
+              href={link(g.reports[0].href)}
+              className={`whitespace-nowrap rounded-full border px-3 py-1 text-sm font-medium ${active ? "border-brand-navy bg-brand-navy text-white" : "border-zinc-300 bg-white text-zinc-700"}`}
+            >
+              {g.label}
+            </Link>
+          );
+        })}
+      </nav>
+      {current && current.group.reports.length > 1 && (
+        <nav aria-label={current.group.label} className="flex items-end gap-1 overflow-x-auto border-b border-zinc-200">
+          {current.group.reports.map((t) => {
+            const active = pathname === t.href;
+            return (
+              <Link
+                key={t.href}
+                href={link(t.href)}
+                className={`-mb-px whitespace-nowrap border-b-2 px-3 py-2 text-sm font-semibold ${active ? "border-[#2a78d6] text-[#14213d]" : "border-transparent text-zinc-500"}`}
+              >
+                {t.label}
+              </Link>
+            );
+          })}
+        </nav>
+      )}
+    </div>
   );
 }

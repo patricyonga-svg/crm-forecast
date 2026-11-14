@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { NavDropdown } from "./NavDropdown";
-import { AE_TABS, SDR_TABS } from "./ReportTabs";
+import { ReportsMenu } from "./ReportsMenu";
 
 type Item = { href: string; label: string; badge?: number };
 
@@ -17,8 +17,6 @@ export function MainNav({ settings, overdue }: { settings: { href: string; label
     { href: "/affaires?vue=relances", label: "Actions à faire", badge: overdue },
     { href: "/agenda", label: "Agenda" },
   ];
-  // Une entrée par rapport, regroupées en Rapport AE et Rapport SDR.
-  const reports = [...AE_TABS.map((t) => ({ ...t, section: "Rapport AE" })), ...SDR_TABS.map((t) => ({ ...t, section: "Rapport SDR" }))];
   const isActive = (href: string) => {
     if (href === "/affaires?vue=relances") return pathname === "/affaires" && vue === "relances";
     if (href === "/affaires") return pathname.startsWith("/affaires") && vue !== "relances";
@@ -44,7 +42,7 @@ export function MainNav({ settings, overdue }: { settings: { href: string; label
         </Link>
       ))}
       <div className={`rounded-md px-2.5 py-1.5 ${pathname.startsWith("/rapports") ? "bg-white/15 font-semibold text-white" : "hover:bg-white/5"}`}>
-        <NavDropdown label="Rapports" items={reports} />
+        <ReportsMenu />
       </div>
       {settings.length > 0 && (
         <div className={`rounded-md px-2.5 py-1.5 ${settingsActive ? "bg-white/15 font-semibold text-white" : "hover:bg-white/5"}`}>
