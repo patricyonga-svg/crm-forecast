@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
-const AE_TABS = [
+export const AE_TABS = [
   { href: "/rapports", label: "Synthèse" },
   { href: "/rapports/realisations", label: "Réalisations" },
   { href: "/rapports/pipeline", label: "Pipeline" },
@@ -15,7 +15,7 @@ const AE_TABS = [
   { href: "/rapports/transformation", label: "Transformation" },
 ];
 
-const SDR_TABS = [
+export const SDR_TABS = [
   { href: "/rapports/sdr", label: "Réalisations SDR" },
   { href: "/rapports/sdr/rendez-vous", label: "Rendez-vous" },
 ];
@@ -27,7 +27,8 @@ export function ReportTabs() {
   const sdr = pathname.startsWith("/rapports/sdr");
   const tabs = sdr ? SDR_TABS : AE_TABS;
   return (
-    <nav className="flex items-end gap-1 overflow-x-auto border-b border-zinc-200">
+    // Sur ordinateur, les rapports sont choisis dans le menu « Rapports » : les onglets ne servent que sur téléphone.
+    <nav className="flex items-end gap-1 overflow-x-auto border-b border-zinc-200 md:hidden">
       <span className="mr-2 whitespace-nowrap px-1 py-2 text-xs font-bold uppercase tracking-wider text-zinc-400">{sdr ? "Rapport SDR" : "Rapport AE"}</span>
       {tabs.map((t) => {
         const active = pathname === t.href;
