@@ -6,8 +6,12 @@ import { account, byPriority, HEALTH_LABEL, isOpen, type Account, type Health, t
 import { Avatar, Kpi } from "@/components/charts";
 import { StageBadge } from "@/components/StageBadge";
 import { SummarySwitch } from "@/components/SummarySwitch";
+import { FilterBar } from "@/components/FilterBar";
 
-type Search = { trimestre?: string; pays?: string; porteur?: string };
+type Param = string | string[] | undefined;
+type Search = { trimestre?: Param; pays?: Param; porteur?: Param };
+
+const list = (p: Param): string[] => [...new Set((Array.isArray(p) ? p : p ? [p] : []).filter(Boolean))];
 
 const DOT: Record<Health, string> = { ok: "bg-emerald-500", warn: "bg-amber-500", bad: "bg-red-600", idle: "bg-zinc-300" };
 const DEAL_COLUMNS =
@@ -24,10 +28,11 @@ export default async function PremiumPage({ searchParams }: { searchParams: Prom
   const { supabase } = await getSession();
   const refs = await getReferences(supabase);
   const today = new Date().toISOString().slice(0, 10);
-  const trimestre = /^\d{4}-T[1-4]$/.test(params.trimestre ?? "") ? params.trimestre! : currentQuarter();
+  const asked = list(params.trimestre).find((t) => /^\d{4}-T[1-4]$/.test(t));
+  const trimestre = asked ?? currentQuarter();
   const { from, to } = quarterRange(trimestre);
-  const pays = params.pays || undefined;
-  const porteur = params.porteur ? Number(params.porteur) : undefined;
+  const pays = list(params.pays);
+  const porteurs = list(params.porteur).map(Number).filter(Number.isFinite);
 
   const [{ data: clientRows }, { data: dealRows }, { data: teamRows }] = await Promise.all([
     supabase.from("clients").select("id, name, country_code").eq("is_premium", true).order("name"),
@@ -41,10 +46,11 @@ export default async function PremiumPage({ searchParams }: { searchParams: Prom
       .returns<ReportDeal[]>(),
   ]);
 
-  const keep = (d: { country_code: string; sales_rep_id: number | null }) => (!pays || d.country_code === pays) && (!porteur || d.sales_rep_id === porteur);
+  const keep = (d: { country_code: string; sales_rep_id: number | null }) =>
+    (!pays.length || pays.includes(d.country_code)) && (!porteurs.length || (d.sales_rep_id !== null && porteurs.includes(d.sales_rep_id)));
   const deals = (dealRows ?? []).filter(keep);
   const team = (teamRows ?? []).filter(keep);
-  const filtered = !!(pays || porteur);
+  const filtered = pays.length > 0 || porteurs.length > 0;
 
   // Dernier contact par affaire : notes et appels saisis, rendez-vous passés.
   const ids = deals.map((d) => d.id);
@@ -65,7 +71,7 @@ export default async function PremiumPage({ searchParams }: { searchParams: Prom
   }
 
   const accounts: Account[] = (clientRows ?? [])
-    .filter((c) => !pays || c.country_code === pays || deals.some((d) => d.client_id === c.id))
+    .filter((c) => !pays.length || pays.includes(c.country_code) || deals.some((d) => d.client_id === c.id))
     .map((c) => account(c, deals.filter((d) => d.client_id === c.id), lastContact.get(c.id) ?? null, today))
     .filter((a) => !filtered || a.deals.length > 0)
     .sort(byPriority);
@@ -103,9 +109,10 @@ export default async function PremiumPage({ searchParams }: { searchParams: Prom
     })
     .filter((s) => s.count > 0);
 
-  const year = Number(trimestre.slice(0, 4));
+  const year = new Date().getFullYear();
   const quarters = [year - 1, year, year + 1].flatMap((y) => [1, 2, 3, 4].map((q) => `${y}-T${q}`));
-  const pipeLink = `/affaires?premium=oui&mode=pipe${pays ? `&pays=${pays}` : ""}${porteur ? `&porteur=${porteur}` : ""}`;
+  const pipeQuery = new URLSearchParams([["premium", "oui"], ["mode", "pipe"], ...pays.map((p) => ["pays", p]), ...porteurs.map((p) => ["porteur", String(p)])]);
+  const pipeLink = `/affaires?${pipeQuery.toString()}`;
 
   return (
     <div className="space-y-6">
@@ -120,40 +127,24 @@ export default async function PremiumPage({ searchParams }: { searchParams: Prom
             {accounts.length} client{accounts.length > 1 ? "s" : ""} · {openDeals.length} affaire{openDeals.length > 1 ? "s" : ""} en cours
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <form className="flex flex-wrap gap-2">
-            <select name="trimestre" defaultValue={trimestre} className="input w-auto" aria-label="Trimestre">
-              {quarters.map((q) => (
-                <option key={q} value={q}>
-                  {q.replace("-", " ")}
-                </option>
-              ))}
-            </select>
-            <select name="pays" defaultValue={pays ?? ""} className="input w-auto" aria-label="Pays">
-              <option value="">Tous les pays</option>
-              {refs.countries.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-            <select name="porteur" defaultValue={porteur ?? ""} className="input w-auto" aria-label="Commercial">
-              <option value="">Tous les commerciaux</option>
-              {refs.reps
-                .filter((r) => r.active !== false)
-                .map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.display_name}
-                  </option>
-                ))}
-            </select>
-            <button className="btn-secondary">Afficher</button>
-          </form>
-          <Link href={pipeLink} className="btn-secondary hidden md:inline-flex">
-            Voir le pipe Premium
-          </Link>
-        </div>
+        <Link href={pipeLink} className="hidden rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm font-semibold hover:bg-zinc-50 md:inline-block">
+          Voir le pipe Premium
+        </Link>
       </div>
+
+      <FilterBar
+        search={false}
+        mine={false}
+        filters={[
+          { name: "trimestre", label: "Trimestre", single: true, options: quarters.map((q) => ({ value: q, label: q.replace("-", " ") })) },
+          { name: "pays", label: "Pays", options: refs.countries.map((c) => ({ value: c.code, label: c.name })) },
+          {
+            name: "porteur",
+            label: "Commercial",
+            options: refs.reps.filter((r) => r.active !== false).map((r) => ({ value: String(r.id), label: r.display_name })),
+          },
+        ]}
+      />
 
       {(clientRows ?? []).length === 0 ? (
         <div className="card space-y-2 py-10 text-center text-sm text-zinc-600">

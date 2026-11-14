@@ -3,13 +3,13 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
-export type FilterDef = { name: string; label: string; options: { value: string; label: string }[] };
+export type FilterDef = { name: string; label: string; options: { value: string; label: string }[]; single?: boolean };
 
 /**
  * Filtres de la liste des affaires : recherche, « Mes affaires », puis une pastille par filtre actif
  * (retirée d'un clic) et un menu « + Filtre ». Chaque changement s'applique tout de suite via l'URL.
  */
-export function FilterBar({ filters }: { filters: FilterDef[] }) {
+export function FilterBar({ filters, search = true, mine = true }: { filters: FilterDef[]; search?: boolean; mine?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -35,6 +35,12 @@ export function FilterBar({ filters }: { filters: FilterDef[] }) {
   const toggle = (name: string, value: string) =>
     go((p) => {
       const current = p.getAll(name);
+      // Filtre à choix unique (ex. trimestre) : la nouvelle valeur remplace l'ancienne.
+      if (filters.find((f) => f.name === name)?.single) {
+        p.delete(name);
+        if (!current.includes(value)) p.set(name, value);
+        return;
+      }
       p.delete(name);
       for (const v of current.includes(value) ? current.filter((v) => v !== value) : [...current, value]) p.append(name, v);
     });
@@ -47,6 +53,7 @@ export function FilterBar({ filters }: { filters: FilterDef[] }) {
 
   return (
     <div ref={ref} className={`flex flex-wrap items-center gap-2 ${pending ? "opacity-70" : ""}`}>
+      {search && (
       <form
         className="w-full sm:w-auto"
         role="search"
@@ -57,7 +64,8 @@ export function FilterBar({ filters }: { filters: FilterDef[] }) {
       >
         <input value={q} onChange={(e) => setQ(e.target.value)} type="search" placeholder="Rechercher un client…" aria-label="Rechercher un client" className="input w-full sm:w-56" />
       </form>
-      {vue !== "relances" && (
+      )}
+      {mine && vue !== "relances" && (
         <button
           type="button"
           onClick={() => go((p) => (vue === "miennes" ? p.delete("vue") : p.set("vue", "miennes")))}
@@ -98,7 +106,7 @@ export function FilterBar({ filters }: { filters: FilterDef[] }) {
                 </button>
                 {current.options.map((o) => (
                   <label key={o.value} className="flex cursor-pointer items-center gap-2 whitespace-nowrap px-3 py-1.5 hover:bg-zinc-50">
-                    <input type="checkbox" checked={params.getAll(current.name).includes(o.value)} onChange={() => toggle(current.name, o.value)} className="accent-brand-blue" />
+                    <input type={current.single ? "radio" : "checkbox"} checked={params.getAll(current.name).includes(o.value)} onChange={() => toggle(current.name, o.value)} className="accent-brand-blue" />
                     {o.label}
                   </label>
                 ))}
