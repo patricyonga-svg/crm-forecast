@@ -3,10 +3,10 @@ import { FilterBar } from "@/components/FilterBar";
 import { HistoryNotice } from "@/components/history-charts";
 import { Legend, Swatch } from "@/components/charts";
 import { Waterfall, type Step } from "@/components/history-charts";
-import { dealTitle, quarterRange } from "@/lib/domain";
+import { dealTitle } from "@/lib/domain";
 import { MOVE_KINDS, pipeMoves, stateAt, type MoveKind } from "@/lib/history";
-import { formatM, monthEnd } from "@/lib/reports";
-import { commonFilters, list, loadHistory, longDate, type Param } from "../history-data";
+import { formatM } from "@/lib/reports";
+import { commonFilters, list, loadHistory, longDate, periods, type Param } from "../history-data";
 
 type Search = { periode?: Param; pays?: Param; porteur?: Param; premium?: Param };
 
@@ -28,23 +28,6 @@ const SHORT: Record<MoveKind, string> = {
   perdues: "Perdues",
   autres: "Autres",
 };
-const MONTH = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
-
-/** Périodes proposées : chaque mois depuis le début de l'historique, puis les trimestres concernés. */
-function periods(historyStart: string, today: string) {
-  const months: string[] = [];
-  for (let m = `${historyStart.slice(0, 7)}-01`; m <= today; ) {
-    months.push(m);
-    const [y, mo] = m.split("-").map(Number);
-    m = mo === 12 ? `${y + 1}-01-01` : `${y}-${String(mo + 1).padStart(2, "0")}-01`;
-  }
-  const quarters = [...new Set(months.map((m) => `${m.slice(0, 4)}-T${Math.floor((Number(m.slice(5, 7)) - 1) / 3) + 1}`))];
-  return [
-    ...months.reverse().map((m) => ({ value: m.slice(0, 7), label: MONTH.format(new Date(`${m}T12:00:00Z`)), from: m, to: monthEnd(m) })),
-    ...quarters.reverse().map((q) => ({ value: q, label: q.replace("-", " "), ...quarterRange(q) })),
-  ];
-}
-
 export default async function MovesPage({ searchParams }: { searchParams: Promise<Search> }) {
   const params = await searchParams;
   const { refs, tl, historyStart, keepState, deals, clientById, repName, now, today, historyMissing } = await loadHistory(params);

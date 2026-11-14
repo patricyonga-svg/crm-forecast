@@ -265,33 +265,66 @@ export function collectionMonths(
   return { buckets, undated };
 }
 
-// Transformation et cycle ----------------------------------------------------------------------
-
-export type Conversion = { won: number; lost: number; wonAmount: number; lostAmount: number; rate: number | null; amountRate: number | null };
-
-/** Taux de transformation : affaires gagnées sur affaires tranchées (gagnées + perdues), en nombre et en montant. */
-export function conversion(deals: { stage: Stage; quote_amount: number }[]): Conversion {
-  const won = deals.filter((d) => d.stage === "won" || d.stage === "won_pending");
-  const lost = deals.filter((d) => d.stage === "perdu");
-  const wonAmount = won.reduce((s, d) => s + Number(d.quote_amount), 0);
-  const lostAmount = lost.reduce((s, d) => s + Number(d.quote_amount), 0);
-  const n = won.length + lost.length;
-  return {
-    won: won.length,
-    lost: lost.length,
-    wonAmount,
-    lostAmount,
-    rate: n ? won.length / n : null,
-    amountRate: wonAmount + lostAmount > 0 ? wonAmount / (wonAmount + lostAmount) : null,
-  };
-}
-
 /** Durée en jours entre deux dates ISO. */
 export const daysBetween = (from: string, to: string) => Math.max(0, Math.round((Date.parse(to) - Date.parse(from)) / 86_400_000));
 
-export const median = (values: number[]): number | null => {
-  if (!values.length) return null;
-  const s = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(s.length / 2);
-  return s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2);
-};
+
+// Pipe d'une période et ce qu'il est devenu --------------------------------------------------
+
+export type Outcome = "gagnee" | "perdue" | "en_cours" | "sortie";
+export type CohortDeal = { id: string; state: DealState; outcome: Outcome; enteredDuring: boolean };
+
+/**
+ * Pipe travaillé pendant une période : les affaires ouvertes (Opportunité, À relancer, Forecast) au début,
+ * plus celles entrées dans le pipe pendant la période. Pour chacune, son état à la fin de la période :
+ * gagnée (Won Pending ou Won), perdue, toujours en cours, ou sortie (retour en prospection, suppression).
+ * Le montant et le commercial retenus sont ceux de la fin de la période (ou du dernier état connu).
+ */
+export function pipeCohort(tl: Map<string, HistoryEvent[]>, startAt: string, endAt: string): CohortDeal[] {
+  const t0 = Date.parse(startAt);
+  const t1 = Date.parse(endAt);
+  const out: CohortDeal[] = [];
+  for (const [id, events] of tl) {
+    let atStart: DealState | null = null;
+    let last: DealState | null = null;
+    let lastKnown: DealState | null = null;
+    let entered = false;
+    for (const e of events) {
+      const t = Date.parse(e.at);
+      if (t > t1) break;
+      if (t <= t0) atStart = e.state;
+      else if (e.state && OPEN_PIPE.includes(e.state.stage)) entered = true;
+      last = e.state;
+      if (e.state) lastKnown = e.state;
+    }
+    const openAtStart = !!atStart && OPEN_PIPE.includes(atStart.stage);
+    if (!openAtStart && !entered) continue;
+    const state = last ?? lastKnown!;
+    const outcome: Outcome = !last
+      ? "sortie"
+      : last.stage === "won" || last.stage === "won_pending"
+        ? "gagnee"
+        : last.stage === "perdu"
+          ? "perdue"
+          : OPEN_PIPE.includes(last.stage)
+            ? "en_cours"
+            : "sortie";
+    out.push({ id, state, outcome, enteredDuring: !openAtStart });
+  }
+  return out;
+}
+
+export type CohortStats = { count: number; amount: number; won: number; wonAmount: number; lost: number; lostAmount: number; open: number; openAmount: number; out: number; outAmount: number };
+
+export function cohortStats(deals: CohortDeal[]): CohortStats {
+  const s: CohortStats = { count: 0, amount: 0, won: 0, wonAmount: 0, lost: 0, lostAmount: 0, open: 0, openAmount: 0, out: 0, outAmount: 0 };
+  for (const d of deals) {
+    const a = d.state.quote_amount;
+    s.count++;
+    s.amount += a;
+    const [n, m] = ({ gagnee: ["won", "wonAmount"], perdue: ["lost", "lostAmount"], en_cours: ["open", "openAmount"], sortie: ["out", "outAmount"] } as const)[d.outcome];
+    s[n]++;
+    s[m] += a;
+  }
+  return s;
+}

@@ -1,10 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  cohortStats,
   collectionMonths,
-  conversion,
   dueDate,
-  median,
+  pipeCohort,
   pipeMoves,
   stageSince,
   stateAt,
@@ -156,19 +156,40 @@ test("encaissements par mois", () => {
   assert.equal(dueDate({ expected_payment_date: null, expected_close_date: "2026-11-20" }), "2026-12-20");
 });
 
-test("taux de transformation et médiane", () => {
-  const c = conversion([
-    { stage: "won", quote_amount: 10 },
-    { stage: "won_pending", quote_amount: 10 },
-    { stage: "perdu", quote_amount: 30 },
-    { stage: "opportunite", quote_amount: 100 },
-  ]);
-  assert.equal(c.won, 2);
-  assert.equal(c.lost, 1);
-  assert.equal(c.rate, 2 / 3);
-  assert.equal(c.amountRate, 20 / 50);
-  assert.equal(conversion([]).rate, null);
-  assert.equal(median([5, 1, 3]), 3);
-  assert.equal(median([1, 2, 3, 10]), 3);
-  assert.equal(median([]), null);
+test("pipe d'une période et taux de transformation", () => {
+  const tl = timeline(
+    [
+      // ouverte au début, gagnée pendant la période (montant revu)
+      row("a", "2026-10-20T10:00:00Z", "INSERT", "opportunite", 10),
+      row("a", "2026-11-10T10:00:00Z", "UPDATE", "won_pending", 12),
+      // ouverte au début, perdue
+      row("b", "2026-10-20T10:00:00Z", "INSERT", "forecast", 5),
+      row("b", "2026-11-05T10:00:00Z", "UPDATE", "perdu", 5),
+      // créée pendant la période, toujours en cours
+      row("c", "2026-11-03T10:00:00Z", "INSERT", "opportunite", 8),
+      // lead jamais passé en opportunité : hors pipe
+      row("d", "2026-11-03T10:00:00Z", "INSERT", "a_contacter", 3),
+      // gagnée avant la période : hors pipe
+      row("e", "2026-10-20T10:00:00Z", "INSERT", "won", 9),
+      // gagnée après la fin de la période : encore en cours à la fin
+      row("f", "2026-10-20T10:00:00Z", "INSERT", "forecast", 7),
+      row("f", "2026-12-02T10:00:00Z", "UPDATE", "won", 7),
+      // supprimée pendant la période
+      row("g", "2026-10-20T10:00:00Z", "INSERT", "opportunite", 4),
+      row("g", "2026-11-20T10:00:00Z", "DELETE", null),
+    ].map(toEvent),
+  );
+  const cohort = pipeCohort(tl, "2026-11-01T00:00:00Z", "2026-11-30T23:59:59Z");
+  const by = Object.fromEntries(cohort.map((c) => [c.id, c]));
+  assert.deepEqual(Object.keys(by).sort(), ["a", "b", "c", "f", "g"]);
+  assert.equal(by.a.outcome, "gagnee");
+  assert.equal(by.a.state.quote_amount, 12);
+  assert.equal(by.b.outcome, "perdue");
+  assert.equal(by.c.outcome, "en_cours");
+  assert.equal(by.c.enteredDuring, true);
+  assert.equal(by.f.outcome, "en_cours");
+  assert.equal(by.g.outcome, "sortie");
+  assert.equal(by.g.state.quote_amount, 4);
+  const s = cohortStats(cohort);
+  assert.deepEqual([s.count, s.amount, s.won, s.wonAmount, s.lost, s.open, s.openAmount, s.out], [5, 36, 1, 12, 1, 2, 15, 1]);
 });
