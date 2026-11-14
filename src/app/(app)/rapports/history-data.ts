@@ -1,7 +1,8 @@
 // Données des rapports historiques (évolution, mouvements, encaissements, stagnation, transformation).
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import { getReferences, getSession } from "@/lib/session";
-import { currentQuarter, type Stage } from "@/lib/domain";
+import { currentQuarter, quarterRange, type Stage } from "@/lib/domain";
+import { monthEnd } from "@/lib/reports";
 import { timeline, toEvent, type AuditRow, type DealState } from "@/lib/history";
 
 export type Param = string | string[] | undefined;
@@ -128,3 +129,21 @@ const DAY = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "short" })
 const LONG = new Intl.DateTimeFormat("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 export const shortDate = (iso: string) => DAY.format(new Date(iso.length === 10 ? `${iso}T12:00:00Z` : iso));
 export const longDate = (iso: string) => LONG.format(new Date(iso.length === 10 ? `${iso}T12:00:00Z` : iso));
+
+const MONTH = new Intl.DateTimeFormat("fr-FR", { month: "long", year: "numeric" });
+
+/** Périodes proposées : chaque mois depuis le début de l'historique, puis les trimestres concernés. */
+export function periods(historyStart: string, today: string) {
+  const months: string[] = [];
+  for (let m = `${historyStart.slice(0, 7)}-01`; m <= today; ) {
+    months.push(m);
+    const [y, mo] = m.split("-").map(Number);
+    m = mo === 12 ? `${y + 1}-01-01` : `${y}-${String(mo + 1).padStart(2, "0")}-01`;
+  }
+  const quarters = [...new Set(months.map((m) => `${m.slice(0, 4)}-T${Math.floor((Number(m.slice(5, 7)) - 1) / 3) + 1}`))];
+  return [
+    ...months.reverse().map((m) => ({ value: m.slice(0, 7), label: MONTH.format(new Date(`${m}T12:00:00Z`)), from: m, to: monthEnd(m) })),
+    ...quarters.reverse().map((q) => ({ value: q, label: q.replace("-", " "), ...quarterRange(q) })),
+  ];
+}
+
