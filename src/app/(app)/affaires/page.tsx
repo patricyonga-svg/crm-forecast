@@ -219,6 +219,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
             created: d.created_at.slice(0, 10),
             paymentDate: d.expected_payment_date,
             lateCollection: lateCollection(d, today),
+            collected: Number(d.collected_amount),
             late: !!d.expected_close_date && d.expected_close_date < today && !["won", "won_pending", "perdu"].includes(d.stage),
           }))}
         />

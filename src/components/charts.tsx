@@ -159,6 +159,16 @@ export function LateCollectionPill({ title }: { title?: string }) {
   );
 }
 
+/** Étiquette verte « X encaissé » des affaires Won Pending dont le paiement a commencé. */
+export function CollectedPill({ label, title }: { label: string; title?: string }) {
+  return (
+    <span title={title} className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${PILL.ok}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${DOT.ok}`} aria-hidden />
+      {label} encaissé
+    </span>
+  );
+}
+
 /** Étoile « Premium » posée sur les affaires d'un client Premium. */
 export function PremiumBadge({ compact = false }: { compact?: boolean }) {
   return (
