@@ -37,7 +37,7 @@ export default async function ConversionPage({ searchParams }: { searchParams: P
   const fromImport = !historyStart || period.from <= historyStart;
   const startAt = fromImport ? `${historyStart ?? today}T23:59:59Z` : `${period.from}T00:00:00Z`;
   const endAt = new Date(Math.min(Date.parse(`${period.to}T23:59:59Z`), Date.parse(now))).toISOString();
-  const cohort = pipeCohort(tl, startAt, endAt).filter((d) => keepState(d.state));
+  const cohort = pipeCohort(tl, startAt, endAt, fromImport ? period.from : undefined).filter((d) => keepState(d.state));
 
   const repCountry = new Map(refs.reps.map((r) => [r.id as number, r.country_code as string | null]));
   const byRep = new Map<number | null, CohortDeal[]>();
@@ -60,8 +60,8 @@ export default async function ConversionPage({ searchParams }: { searchParams: P
         </h1>
         <p className="text-sm text-zinc-600">
           Pipe de la période = affaires ouvertes au {longDate(startAt)}
-          {fromImport && historyStart ? " (début de l'historique)" : ""} et affaires entrées dans le pipe jusqu&apos;au {ongoing ? "jour" : longDate(endAt)}. On regarde
-          ensuite ce qu&apos;elles sont devenues.
+          {fromImport && historyStart ? " (début de l'historique), affaires déjà gagnées ou perdues avec un closing depuis le " + longDate(period.from) : ""} et
+          affaires entrées dans le pipe ou tranchées jusqu&apos;au {ongoing ? "jour" : longDate(endAt)}. On regarde ensuite ce qu&apos;elles sont devenues.
         </p>
       </div>
 
