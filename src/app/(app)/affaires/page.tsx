@@ -5,7 +5,7 @@ import { formatM } from "@/lib/reports";
 import { PipelineBoard } from "@/components/PipelineBoard";
 import { FilterBar } from "@/components/FilterBar";
 import { StageBadge } from "@/components/StageBadge";
-import { LateCollectionPill, PremiumBadge } from "@/components/charts";
+import { CollectedPill, LateCollectionPill, PremiumBadge } from "@/components/charts";
 
 type Row = Deal & {
   clients: { name: string; is_premium: boolean };
@@ -176,6 +176,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
                   <div className="flex flex-wrap items-center gap-1.5">
                     <StageBadge stage={d.stage} />
                     {lateCollection(d, today) && <LateCollectionPill />}
+                    {d.stage === "won_pending" && Number(d.collected_amount) > 0 && <CollectedPill label={formatM(Number(d.collected_amount))} />}
                     {d.expected_close_date && <span className="text-xs text-zinc-500">closing {formatDate(d.expected_close_date)}</span>}
                   </div>
                   {d.next_action && (
