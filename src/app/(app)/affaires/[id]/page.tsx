@@ -16,12 +16,13 @@ import {
   STAGES,
   type Appointment,
   type Client,
+  canTagPremium,
   type Contact,
   type Deal,
   type Stage,
 } from "@/lib/domain";
 import { StageBadge } from "@/components/StageBadge";
-import { LateCollectionPill } from "@/components/charts";
+import { LateCollectionPill, PremiumBadge } from "@/components/charts";
 import { DealFields } from "@/components/DealFields";
 import { ActionForm } from "@/components/ActionForm";
 import { ContactFields } from "@/components/ContactFields";
@@ -42,7 +43,9 @@ import {
   updateClient,
   updateContact,
   updateDeal,
+  setClientPremium,
 } from "../actions";
+import { PremiumToggle } from "@/components/PremiumToggle";
 
 const KIND_LABEL: Record<string, string> = { note: "Note", appel: "Appel", rdv: "Rendez-vous", devis: "Devis", relance: "Relance" };
 
@@ -64,7 +67,10 @@ export default async function DealPage({ params, searchParams }: { params: Promi
   ]);
   if (!deal) notFound();
   const client = deal.clients;
-  const { data: companyContacts } = await supabase.from("contacts").select("*").eq("client_id", client.id).order("last_name").returns<Contact[]>();
+  const [{ data: companyContacts }, { count: clientDeals }] = await Promise.all([
+    supabase.from("contacts").select("*").eq("client_id", client.id).order("last_name").returns<Contact[]>(),
+    supabase.from("deals").select("id", { count: "exact", head: true }).eq("client_id", client.id),
+  ]);
 
   const names = new Map((profiles.data ?? []).map((p) => [p.id, p.full_name]));
   const repName = new Map(refs.reps.map((r) => [r.id, r.display_name]));
@@ -96,6 +102,7 @@ export default async function DealPage({ params, searchParams }: { params: Promi
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-xl font-semibold">{title}</h1>
           <StageBadge stage={deal.stage} />
+          {client.is_premium && <PremiumBadge />}
           {lateCollection(deal) && <LateCollectionPill />}
         </div>
         {deal.stage === "won_pending" && !deal.invoice_file_path && (
@@ -331,7 +338,15 @@ export default async function DealPage({ params, searchParams }: { params: Promi
 
         <div className="space-y-4">
           {/* Entreprise */}
-          <div className="card">
+          <div className="card space-y-3">
+            {canTagPremium(profile?.role) && (
+              <PremiumToggle
+                premium={client.is_premium}
+                since={client.premium_since}
+                dealCount={clientDeals ?? 0}
+                action={setClientPremium.bind(null, client.id, deal.id)}
+              />
+            )}
             <ActionForm action={updateClient.bind(null, client.id, deal.id)} className="space-y-2">
               <h2 className="font-medium">Entreprise : {client.name}</h2>
               <label className="block space-y-1 text-sm">

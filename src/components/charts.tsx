@@ -158,3 +158,16 @@ export function LateCollectionPill({ title }: { title?: string }) {
     </span>
   );
 }
+
+/** Étoile « Premium » posée sur les affaires d'un client Premium. */
+export function PremiumBadge({ compact = false }: { compact?: boolean }) {
+  return (
+    <span
+      title="Client Premium"
+      className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-amber-50 px-1.5 py-px text-[11px] font-bold leading-4 text-amber-800 ring-1 ring-inset ring-amber-400"
+    >
+      <span aria-hidden>★</span>
+      {compact ? <span className="sr-only">Premium</span> : "Premium"}
+    </span>
+  );
+}
