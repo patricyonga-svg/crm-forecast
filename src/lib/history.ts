@@ -276,11 +276,13 @@ export type CohortDeal = { id: string; state: DealState; outcome: Outcome; enter
 
 /**
  * Pipe travaillé pendant une période : les affaires ouvertes (Opportunité, À relancer, Forecast) au début,
- * plus celles entrées dans le pipe pendant la période. Pour chacune, son état à la fin de la période :
+ * plus celles entrées dans le pipe, gagnées ou perdues pendant la période. Avec `closedSince` (période commencée
+ * avant le début de l'historique), aussi celles déjà gagnées ou perdues au départ dont le closing date de `closedSince` ou après. Pour chacune, son état à la fin de la période :
  * gagnée (Won Pending ou Won), perdue, toujours en cours, ou sortie (retour en prospection, suppression).
  * Le montant et le commercial retenus sont ceux de la fin de la période (ou du dernier état connu).
  */
-export function pipeCohort(tl: Map<string, HistoryEvent[]>, startAt: string, endAt: string): CohortDeal[] {
+export function pipeCohort(tl: Map<string, HistoryEvent[]>, startAt: string, endAt: string, closedSince?: string): CohortDeal[] {
+  const decided = (s: DealState | null) => !!s && (s.stage === "won" || s.stage === "won_pending" || s.stage === "perdu");
   const t0 = Date.parse(startAt);
   const t1 = Date.parse(endAt);
   const out: CohortDeal[] = [];
@@ -293,12 +295,16 @@ export function pipeCohort(tl: Map<string, HistoryEvent[]>, startAt: string, end
       const t = Date.parse(e.at);
       if (t > t1) break;
       if (t <= t0) atStart = e.state;
-      else if (e.state && OPEN_PIPE.includes(e.state.stage)) entered = true;
+      // Entrée dans le pipe, ou affaire gagnée / perdue pendant la période (même saisie directement à ce stade).
+      else if (e.state && (OPEN_PIPE.includes(e.state.stage) || (decided(e.state) && !decided(last)))) entered = true;
       last = e.state;
       if (e.state) lastKnown = e.state;
     }
     const openAtStart = !!atStart && OPEN_PIPE.includes(atStart.stage);
-    if (!openAtStart && !entered) continue;
+    // Période commencée avant l'historique : les affaires déjà gagnées ou perdues à l'import,
+    // avec une date de closing dans la période, ont été tranchées pendant la période.
+    const closedBefore = !!closedSince && decided(atStart) && !!atStart!.expected_close_date && atStart!.expected_close_date >= closedSince;
+    if (!openAtStart && !entered && !closedBefore) continue;
     const state = last ?? lastKnown!;
     const outcome: Outcome = !last
       ? "sortie"

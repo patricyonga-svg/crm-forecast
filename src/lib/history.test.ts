@@ -190,6 +190,18 @@ test("pipe d'une période et taux de transformation", () => {
   assert.equal(by.f.outcome, "en_cours");
   assert.equal(by.g.outcome, "sortie");
   assert.equal(by.g.state.quote_amount, 4);
+  // Période commencée avant l'historique : affaire importée déjà gagnée, closing dans la période.
+  const tl2 = timeline(
+    [
+      { ...row("h", "2026-10-20T10:00:00Z", "INSERT", "won_pending", 6), expected_close_date: "2026-10-08" },
+      { ...row("i", "2026-10-20T10:00:00Z", "INSERT", "won", 2), expected_close_date: "2026-09-20" },
+      row("j", "2026-11-04T10:00:00Z", "INSERT", "won_pending", 3), // saisie directement gagnée
+    ].map(toEvent),
+  );
+  const q4 = pipeCohort(tl2, "2026-10-20T23:59:59Z", "2026-11-30T23:59:59Z", "2026-10-01");
+  assert.deepEqual(q4.map((c) => [c.id, c.outcome]).sort(), [["h", "gagnee"], ["j", "gagnee"]]);
+  assert.equal(pipeCohort(tl2, "2026-10-20T23:59:59Z", "2026-11-30T23:59:59Z").length, 1);
+
   const s = cohortStats(cohort);
   assert.deepEqual([s.count, s.amount, s.won, s.wonAmount, s.lost, s.open, s.openAmount, s.out], [5, 36, 1, 12, 1, 2, 15, 1]);
 });
