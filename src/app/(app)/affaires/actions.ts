@@ -3,8 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { type Contact, contactName, formatDate, formatDateTime, isCardsStatus, isSaleChannel, isStage, QUOTE_REQUIRED_STAGES, STAGE_LABEL, dealTitle, type Stage } from "@/lib/domain";
+import { type Contact, contactName, formatDate, formatDateTime, formatMoney, isCardsStatus, isSaleChannel, isStage, QUOTE_REQUIRED_STAGES, SALE_CHANNELS, STAGE_LABEL, dealTitle, type Stage } from "@/lib/domain";
 import { calendarInvite, emailConfigured, escapeHtml, googleCalendarLink, sendMail } from "@/lib/email";
+import { directMessages, meetingMessage, postSlack, slackConfigured, slackUserId, winMessage, winsChannel } from "@/lib/slack";
 
 export type FormState = { error?: string; ok?: string };
 
@@ -135,6 +136,70 @@ const fail = (e: unknown): FormState => {
 /** Étapes qui passent par un formulaire : on y envoie l'utilisateur au lieu de changer l'étape directement. */
 const FORM_FOR_STAGE: Partial<Record<Stage, string>> = { prise_rdv: "rdv", cr_rdv: "cr" };
 
+const siteUrl = () => process.env.NEXT_PUBLIC_SITE_URL || "https://crm-forecast-susu-73c6.vercel.app";
+
+type RepRow = { display_name: string; email: string | null; profiles: { email: string } | null } | null;
+const repEmail = (r: RepRow) => r?.profiles?.email ?? r?.email ?? null;
+
+/**
+ * Annonce Slack d'une affaire gagnée : passage en Won Pending (nouvelle vente) puis en Won (encaissement complet).
+ * Rien n'est envoyé si l'affaire était déjà à cette étape, ou si elle redescend de Won à Won Pending.
+ * Une erreur Slack est notée dans l'historique de l'affaire mais ne bloque jamais l'enregistrement.
+ */
+async function announceWin(supabase: Supabase, dealId: string, previous: Stage | null, stage: Stage) {
+  if (!slackConfigured() || (stage !== "won_pending" && stage !== "won") || previous === stage) return;
+  if (stage === "won_pending" && previous === "won") return;
+  try {
+    const { data: d } = await supabase
+      .from("deals")
+      .select(
+        "name, quote_amount, beneficiaries, sale_channel, expected_payment_date, country_code, clients(name), countries(name, currency), business_lines(name), rep:sales_reps!sales_rep_id(display_name, email, profiles(email)), sdr:sales_reps!sdr_id(display_name, email, profiles(email))",
+      )
+      .eq("id", dealId)
+      .single<{
+        name: string | null;
+        quote_amount: number;
+        beneficiaries: number | null;
+        sale_channel: string | null;
+        expected_payment_date: string | null;
+        country_code: string;
+        clients: { name: string } | null;
+        countries: { name: string; currency: string } | null;
+        business_lines: { name: string } | null;
+        rep: RepRow;
+        sdr: RepRow;
+      }>();
+    if (!d) return;
+    const currency = d.countries?.currency ?? "XOF";
+    const [repSlack, sdrSlack] = await Promise.all([slackUserId(repEmail(d.rep)), slackUserId(repEmail(d.sdr))]);
+    const client = d.clients?.name ?? "Client";
+    const text = winMessage({
+      stage,
+      title: dealTitle(d, client),
+      client,
+      country: d.countries?.name ?? d.country_code,
+      businessLine: d.business_lines?.name ?? null,
+      amount: formatMoney(d.quote_amount, currency),
+      beneficiaries: d.beneficiaries,
+      rep: { name: d.rep?.display_name ?? "commercial non renseigné", slackId: repSlack },
+      sdr: d.sdr && d.sdr.display_name !== d.rep?.display_name ? { name: d.sdr.display_name, slackId: sdrSlack } : null,
+      saleChannel: SALE_CHANNELS.find((c) => c.value === d.sale_channel)?.label ?? null,
+      expectedPayment: d.expected_payment_date ? formatDate(d.expected_payment_date) : null,
+      collected: formatMoney(d.quote_amount, currency),
+      link: `${siteUrl()}/affaires/${dealId}`,
+    });
+    const result = await postSlack(winsChannel(), text);
+    if (result.status === "erreur") {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      await supabase.from("activities").insert({ deal_id: dealId, kind: "note", body: `Message Slack « ${STAGE_LABEL[stage]} » non envoyé (${result.detail}).`, author_id: user?.id });
+    }
+  } catch {
+    // Slack ne doit jamais empêcher l'enregistrement de l'affaire.
+  }
+}
+
 // Affaires -------------------------------------------------------------------------
 
 export async function createDeal(_prev: FormState, form: FormData): Promise<FormState> {
@@ -198,6 +263,7 @@ export async function createDeal(_prev: FormState, form: FormData): Promise<Form
     if (error) throw new Error(error.message);
     if (hasContactInput(contact)) await insertContact(supabase, clientId, data.id, contact);
     await logNextAction(supabase, data.id, fields.next_action, fields.next_action_date);
+    await announceWin(supabase, data.id, null, fields.stage);
     revalidatePath("/affaires");
     const next = FORM_FOR_STAGE[fields.stage];
     target = `/affaires/${data.id}${next ? `?action=${next}#${next}` : ""}`;
@@ -262,6 +328,7 @@ export async function updateDeal(id: string, _prev: FormState, form: FormData): 
     if (current && (fields.next_action !== current.next_action || fields.next_action_date !== current.next_action_date) && (fields.next_action || fields.next_action_date)) {
       await logNextAction(supabase, id, fields.next_action, fields.next_action_date);
     }
+    if (changing && !target && patch.stage) await announceWin(supabase, id, current.stage, patch.stage);
     revalidatePath(`/affaires/${id}`);
     revalidatePath("/affaires");
     if (!target && patch.stage === "won_pending" && changing && !fields.invoice_file_path && !current?.invoice_file_path) {
@@ -295,9 +362,11 @@ export async function moveDeal(id: string, stage: string, extra: MoveExtra = {})
   const supabase = await createClient();
   const problem = await stageProblem(supabase, id, stage, patch as SalesInput);
   if (problem) return { error: problem, redirectTo: `/affaires/${id}` };
+  const { data: before } = await supabase.from("deals").select("stage").eq("id", id).single<{ stage: Stage }>();
   const { data, error } = await supabase.from("deals").update(patch).eq("id", id).select("id");
   if (error) return { error: error.message };
   if (!data?.length) return { error: "Vous ne pouvez pas modifier cette affaire (réservé à son porteur, au manager du pays et aux administrateurs)." };
+  await announceWin(supabase, id, before?.stage ?? null, stage);
   revalidatePath("/affaires");
   revalidatePath(`/affaires/${id}`);
   if (stage === "won_pending" && !patch.invoice_file_path) {
@@ -411,9 +480,9 @@ export async function bookAppointment(dealId: string, _prev: FormState, form: Fo
     } = await supabase.auth.getUser();
     const { data: deal } = await supabase
       .from("deals")
-      .select("id, name, client_id, country_code, stage, clients(name)")
+      .select("id, name, client_id, country_code, stage, sales_rep_id, sdr_id, clients(name)")
       .eq("id", dealId)
-      .single<{ id: string; name: string | null; client_id: string; country_code: string; stage: Stage; clients: { name: string } }>();
+      .single<{ id: string; name: string | null; client_id: string; country_code: string; stage: Stage; sales_rep_id: number | null; sdr_id: number | null; clients: { name: string } }>();
     if (!deal || !user) throw new Error("Affaire introuvable.");
     const repId = int(form, "sales_rep_id");
     if (!repId) throw new Error("Choisissez le commercial qui aura le rendez-vous.");
@@ -450,13 +519,12 @@ export async function bookAppointment(dealId: string, _prev: FormState, form: Fo
       supabase.from("profiles").select("full_name, email").eq("id", user.id).single<{ full_name: string; email: string }>(),
       supabase.from("contacts").select("first_name, last_name, job_title, email, phone").eq("id", contactId).single(),
     ]);
-    const repEmail = rep?.profiles?.email ?? rep?.email ?? null;
-    const recipients = [repEmail, me?.email].filter((e): e is string => !!e);
+    const repMail = repEmail(rep);
+    const recipients = [repMail, me?.email].filter((e): e is string => !!e);
     const title = dealTitle(deal, deal.clients.name);
     const when = formatDateTime(new Date(startsAt).toISOString(), deal.country_code);
     const who = contact ? [contactName(contact), contact.job_title].filter(Boolean).join(", ") : "";
-    const origin = process.env.NEXT_PUBLIC_SITE_URL || "https://crm-forecast-susu-73c6.vercel.app";
-    const link = `${origin}/affaires/${dealId}`;
+    const link = `${siteUrl()}/affaires/${dealId}`;
     const lines = [
       `Rendez-vous pour ${rep?.display_name ?? "le commercial"} : ${deal.clients.name}`,
       `Quand : ${when} (${minutes} min)`,
@@ -470,7 +538,7 @@ export async function bookAppointment(dealId: string, _prev: FormState, form: Fo
     const event = { start: new Date(startsAt), minutes, title: `RDV ${deal.clients.name}${who ? ` avec ${who}` : ""}`, description: lines.join("\n"), location };
     let status = "non_configure";
     let message = "Rendez-vous enregistré.";
-    if (!repEmail) {
+    if (!repMail) {
       status = "erreur : le commercial n'a pas d'adresse email dans Cerise";
       message += " Email non envoyé : le commercial n'a pas d'adresse email (à compléter dans Utilisateurs).";
     } else if (emailConfigured()) {
@@ -490,6 +558,37 @@ export async function bookAppointment(dealId: string, _prev: FormState, form: Fo
       message += " Email non envoyé : le service d'envoi n'est pas encore configuré.";
     }
     await supabase.from("appointments").update({ email_status: status }).eq("id", appt.id);
+
+    // Message Slack privé aux personnes concernées : le commercial du rendez-vous, celui qui l'a pris,
+    // le porteur de l'affaire et son SDR (reconnus dans Slack par leur adresse email).
+    if (slackConfigured()) {
+      try {
+        const others = [deal.sales_rep_id, deal.sdr_id].filter((r): r is number => !!r && r !== repId);
+        const { data: involved } = others.length
+          ? await supabase.from("sales_reps").select("display_name, email, profiles(email)").in("id", others)
+          : { data: [] as RepRow[] };
+        const slack = await directMessages(
+          [repMail, me?.email, ...((involved ?? []) as RepRow[]).map(repEmail)],
+          meetingMessage({
+            client: deal.clients.name,
+            title,
+            rep: rep?.display_name ?? "le commercial",
+            when,
+            minutes,
+            location,
+            who: [who, contact?.phone, contact?.email].filter(Boolean).join(" · "),
+            notes,
+            bookedBy: me?.full_name ?? me?.email ?? "",
+            link,
+          }),
+        );
+        if (slack.sent.length) message += ` Slack envoyé à ${slack.sent.join(", ")}.`;
+        if (slack.missing.length) message += ` Pas de compte Slack trouvé pour ${slack.missing.join(", ")}.`;
+        if (slack.error) message += ` Slack : erreur (${slack.error}).`;
+      } catch {
+        // Slack ne doit jamais empêcher l'enregistrement du rendez-vous.
+      }
+    }
     await supabase.from("activities").insert({
       deal_id: dealId,
       kind: "rdv",
