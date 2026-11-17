@@ -39,3 +39,10 @@ test("Rendez-vous : lignes vides retirées et texte échappé", () => {
   assert.doesNotMatch(m, /Où :|Avec :|Affaire :|Notes :/);
   assert.equal(slackEscape("a & b"), "a &amp; b");
 });
+
+test("Canaux des annonces : par défaut les deux, liste séparée par des virgules", async () => {
+  const { winsChannels } = await import("./slack");
+  assert.deepEqual(winsChannels(""), ["#performance-b2c-to-b2b", "#sales"]);
+  assert.deepEqual(winsChannels("#performance-b2c-to-b2b, sales"), ["#performance-b2c-to-b2b", "#sales"]);
+  assert.deepEqual(winsChannels("C0123ABCD"), ["C0123ABCD"]);
+});

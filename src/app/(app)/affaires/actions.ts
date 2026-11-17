@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { type Contact, contactName, formatDate, formatDateTime, formatMoney, isCardsStatus, isSaleChannel, isStage, QUOTE_REQUIRED_STAGES, SALE_CHANNELS, STAGE_LABEL, dealTitle, type Stage } from "@/lib/domain";
 import { calendarInvite, emailConfigured, escapeHtml, googleCalendarLink, sendMail } from "@/lib/email";
-import { directMessages, meetingMessage, postSlack, slackConfigured, slackUserId, winMessage, winsChannel } from "@/lib/slack";
+import { directMessages, meetingMessage, postSlack, slackConfigured, slackUserId, winMessage, winsChannels } from "@/lib/slack";
 
 export type FormState = { error?: string; ok?: string };
 
@@ -188,12 +188,16 @@ async function announceWin(supabase: Supabase, dealId: string, previous: Stage |
       collected: formatMoney(d.quote_amount, currency),
       link: `${siteUrl()}/affaires/${dealId}`,
     });
-    const result = await postSlack(winsChannel(), text);
-    if (result.status === "erreur") {
+    const failures: string[] = [];
+    for (const channel of winsChannels()) {
+      const r = await postSlack(channel, text);
+      if (r.status === "erreur") failures.push(`${channel} : ${r.detail}`);
+    }
+    if (failures.length) {
       const {
         data: { user },
       } = await supabase.auth.getUser();
-      await supabase.from("activities").insert({ deal_id: dealId, kind: "note", body: `Message Slack « ${STAGE_LABEL[stage]} » non envoyé (${result.detail}).`, author_id: user?.id });
+      await supabase.from("activities").insert({ deal_id: dealId, kind: "note", body: `Message Slack « ${STAGE_LABEL[stage]} » non envoyé (${failures.join(" ; ")}).`, author_id: user?.id });
     }
   } catch {
     // Slack ne doit jamais empêcher l'enregistrement de l'affaire.
