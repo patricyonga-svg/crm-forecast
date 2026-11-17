@@ -1,12 +1,12 @@
 // Messages Slack de Cerise : rendez-vous pris (message privé aux personnes concernées) et affaires gagnées
 // (Won Pending puis Won) annoncées dans un canal. Tout passe par une app Slack dont le jeton est dans Vercel :
 // - SLACK_BOT_TOKEN : jeton « xoxb-… » de l'app (droits chat:write, chat:write.public, users:read, users:read.email) ;
-// - SLACK_WINS_CHANNEL : canal des affaires gagnées (par défaut #performance-b2c-to-b2b).
+// - SLACK_WINS_CHANNEL : canaux des affaires gagnées, séparés par des virgules (par défaut #performance-b2c-to-b2b et #sales).
 // Sans jeton, rien n'est envoyé et l'application fonctionne comme avant. Une erreur Slack ne bloque jamais l'action.
 
 export type SlackResult = { status: "envoye" | "non_configure" | "erreur"; detail?: string };
 
-const DEFAULT_WINS_CHANNEL = "#performance-b2c-to-b2b";
+const DEFAULT_WINS_CHANNELS = "#performance-b2c-to-b2b,#sales";
 
 export const slackConfigured = () => Boolean(process.env.SLACK_BOT_TOKEN);
 
@@ -62,7 +62,15 @@ export async function directMessages(emails: (string | null | undefined)[], text
   return { sent, missing, error };
 }
 
-export const winsChannel = () => process.env.SLACK_WINS_CHANNEL?.trim() || DEFAULT_WINS_CHANNEL;
+/** Canaux des annonces Won Pending / Won : liste séparée par des virgules, « # » ajouté si besoin (sauf identifiant C…). */
+export function winsChannels(value = process.env.SLACK_WINS_CHANNEL): string[] {
+  const list = (value?.trim() || DEFAULT_WINS_CHANNELS)
+    .split(/[,;\s]+/)
+    .map((c) => c.trim())
+    .filter(Boolean)
+    .map((c) => (c.startsWith("#") || /^[CG][A-Z0-9]{6,}$/.test(c) ? c : `#${c}`));
+  return [...new Set(list)];
+}
 
 // Textes des messages -------------------------------------------------------------------
 
