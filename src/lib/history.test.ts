@@ -1,7 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  backfillFromClosing,
   cohortStats,
+  earliestDay,
   collectionMonths,
   dueDate,
   pipeCohort,
@@ -204,4 +206,29 @@ test("pipe d'une période et taux de transformation", () => {
 
   const s = cohortStats(cohort);
   assert.deepEqual([s.count, s.amount, s.won, s.wonAmount, s.lost, s.open, s.openAmount, s.out], [5, 36, 1, 12, 1, 2, 15, 1]);
+});
+
+test("affaires importées : entrée dans leur statut à la date de closing", () => {
+  const close = (r: AuditRow, d: string | null): AuditRow => ({ ...r, expected_close_date: d });
+  const tl = timeline(
+    [
+      close(row("a", "2026-10-20T08:00:00Z", "INSERT", "won_pending", 30), "2026-10-08"),
+      close(row("b", "2026-10-20T08:00:00Z", "INSERT", "forecast", 20), "2026-12-15"),
+      close(row("c", "2026-10-20T08:00:00Z", "INSERT", "forecast", 15), null),
+      close(row("d", "2026-11-02T08:00:00Z", "INSERT", "won_pending", 40), "2026-10-01"),
+      close(row("e", "2026-10-20T08:00:00Z", "INSERT", "forecast", 10), "2026-09-20"),
+      close(row("e", "2026-10-28T08:00:00Z", "UPDATE", "won_pending", 10), "2026-10-28"),
+    ].map(toEvent),
+  );
+  const back = backfillFromClosing(tl, "2026-10-20");
+  assert.equal(earliestDay(back), "2026-09-20");
+  const oct10 = stateAt(back, "2026-10-10T23:59:59Z");
+  assert.equal(oct10.get("a")?.stage, "won_pending", "closé le 8 oct : déjà Won Pending le 10");
+  assert.equal(oct10.has("b"), false, "closing après l'import : apparaît à l'import");
+  assert.equal(oct10.has("c"), false, "sans date de closing : apparaît à l'import");
+  assert.equal(oct10.has("d"), false, "créée après l'import : non reconstituée");
+  assert.equal(oct10.get("e")?.stage, "forecast", "état lu à l'import");
+  assert.equal(stateAt(back, "2026-10-07T23:59:59Z").has("a"), false);
+  assert.equal(stateAt(back, "2026-10-29T00:00:00Z").get("e")?.stage, "won_pending", "la suite du journal est inchangée");
+  assert.equal(tl.get("a")?.length, 1, "le journal d'origine n'est pas modifié");
 });
