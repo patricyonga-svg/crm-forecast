@@ -3,7 +3,7 @@ import { HistoryNotice } from "@/components/history-charts";
 import { Kpi, Legend, StatusPill } from "@/components/charts";
 import { LineChart, SeriesSwatch } from "@/components/history-charts";
 import { currentQuarter, quarterRange } from "@/lib/domain";
-import { stateAt, toReportDeal, weeklyPoints } from "@/lib/history";
+import { backfillFromClosing, earliestDay, stateAt, toReportDeal, weeklyPoints } from "@/lib/history";
 import { coverage, formatM, ratio, sumObjectives, type RepObjective, type Settings } from "@/lib/reports";
 import { commonFilters, list, loadHistory, longDate, quarterOptions, shortDate, type Param } from "../history-data";
 
@@ -35,10 +35,20 @@ export default async function EvolutionPage({ searchParams }: { searchParams: Pr
         months,
       );
 
-  const start = historyStart && historyStart > from ? historyStart : from;
+  // Avant l'import, les affaires importées sont reconstituées à partir de leur date de closing.
+  const history = historyStart ? backfillFromClosing(tl, historyStart) : tl;
+  const earliest = earliestDay(history);
+  const start = earliest && earliest > from ? earliest : from;
+  const importPoint = historyStart ? `${historyStart}T23:59:59.000Z` : null;
   const points = weeklyPoints(start, to, now);
+  // Point au jour de l'import, pour séparer la partie reconstituée de la partie lue dans le journal.
+  if (importPoint && historyStart! >= start && historyStart! <= to && importPoint < now && !points.includes(importPoint)) {
+    points.push(importPoint);
+    points.sort();
+  }
+  const rebuilt = (at: string) => !!historyStart && at.slice(0, 10) < historyStart;
   const rows = points.map((at) => {
-    const deals = [...stateAt(tl, at).values()].filter(keepState).map(toReportDeal);
+    const deals = [...stateAt(history, at).values()].filter(keepState).map(toReportDeal);
     return { at, cov: coverage(deals, objective, trimestre, settings) };
   });
   const first = rows[0];
@@ -57,7 +67,10 @@ export default async function EvolutionPage({ searchParams }: { searchParams: Pr
             ? `Le forecast ${delta("forecast") >= 0 ? "a gagné" : "a perdu"} ${formatM(Math.abs(delta("forecast")))} XOF depuis le ${longDate(first.at)}`
             : "Pas encore d'historique pour ce trimestre"}
         </h1>
-        <p className="text-sm text-zinc-600">Chaque point montre le forecast et le pipe du trimestre tels qu&apos;ils étaient à la fin de la semaine.</p>
+        <p className="text-sm text-zinc-600">
+          Chaque point montre le forecast et le pipe du trimestre tels qu&apos;ils étaient à la fin de la semaine.
+          {historyStart && rows.some((r) => rebuilt(r.at)) && <> Les points avant le {longDate(historyStart)} sont reconstitués à partir des dates de closing.</>}
+        </p>
       </div>
 
       <FilterBar
@@ -107,7 +120,7 @@ export default async function EvolutionPage({ searchParams }: { searchParams: Pr
         </section>
       ) : (
         <div className="card text-sm text-zinc-600">
-          L&apos;historique commence le {historyStart ? longDate(historyStart) : "jour de l'import"} : ce trimestre n&apos;a pas encore de points.
+          L&apos;historique commence le {earliest ? longDate(earliest) : "jour de l'import"} : ce trimestre n&apos;a pas encore de points.
         </div>
       )}
 
@@ -133,7 +146,11 @@ export default async function EvolutionPage({ searchParams }: { searchParams: Pr
                 const tone = (v: number | null) => (v === null || v === 0 ? "text-zinc-400" : v > 0 ? "text-emerald-700" : "text-red-700");
                 return (
                   <tr key={r.at} className="border-b border-zinc-50 tabular-nums last:border-0">
-                    <td className="py-2">{r.at === now ? "Aujourd'hui" : longDate(r.at)}</td>
+                    <td className="py-2">
+                      {r.at === now ? "Aujourd'hui" : longDate(r.at)}
+                      {r.at === importPoint && <span className="ml-2 text-xs text-zinc-500">import</span>}
+                      {rebuilt(r.at) && <span className="ml-2 text-xs italic text-zinc-400">reconstitué</span>}
+                    </td>
                     <td className="py-2 text-right">{formatM(r.cov.done)}</td>
                     <td className="py-2 text-right font-semibold">{formatM(r.cov.forecast)}</td>
                     <td className={`py-2 text-right ${tone(df)}`}>{df === null ? "—" : signed(df)}</td>
@@ -150,6 +167,8 @@ export default async function EvolutionPage({ searchParams }: { searchParams: Pr
 
       <p className="text-xs text-zinc-500">
         Reconstitué à partir du journal des modifications, qui enregistre chaque changement depuis l&apos;import du {historyStart ? longDate(historyStart) : "fichier"}.
+        Avant l&apos;import, chaque affaire importée est comptée dans le statut qu&apos;elle avait à l&apos;import à partir de sa date de closing
+        (les affaires sans date de closing ou avec un closing postérieur apparaissent le jour de l&apos;import).
         Mêmes règles que le rapport Pipeline : forecast = réalisé + affaires au stade Forecast, pipe = affaires du trimestre hors perdues et prospection,
         retards du trimestre précédent inclus. Le minimum attendu utilise les objectifs saisis aujourd&apos;hui
         {filters.premium ? " (masqué pour les clients Premium, qui n'ont pas d'objectif propre)" : ""}. Montants en millions de XOF.

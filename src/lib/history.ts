@@ -192,6 +192,31 @@ export function weeklyPoints(from: string, to: string, now: string): string[] {
   return points.map((t) => new Date(t).toISOString());
 }
 
+/**
+ * Avant l'import, le journal ne dit rien. Pour les affaires importées (premier événement le jour de l'import
+ * ou avant), on considère qu'elles sont entrées dans leur statut d'import à leur date de closing, si celle-ci
+ * est antérieure à l'import : on ajoute un événement fictif à cette date, avec l'état lu à l'import.
+ * Les affaires sans date de closing, ou avec un closing postérieur, gardent l'import comme date d'entrée.
+ */
+export function backfillFromClosing(tl: Map<string, HistoryEvent[]>, importDay: string): Map<string, HistoryEvent[]> {
+  const out = new Map<string, HistoryEvent[]>();
+  for (const [id, events] of tl) {
+    const first = events[0];
+    const close = first?.state?.expected_close_date;
+    if (first && first.at.slice(0, 10) <= importDay && close && close < first.at.slice(0, 10)) {
+      out.set(id, [{ ...first, at: `${close}T00:00:00.000Z` }, ...events]);
+    } else out.set(id, events);
+  }
+  return out;
+}
+
+/** Date du premier événement connu (réel ou reconstitué), au format AAAA-MM-JJ. */
+export function earliestDay(tl: Map<string, HistoryEvent[]>): string | null {
+  let min: string | null = null;
+  for (const events of tl.values()) if (events[0] && (!min || events[0].at < min)) min = events[0].at;
+  return min ? min.slice(0, 10) : null;
+}
+
 // Encaissements --------------------------------------------------------------------------------
 
 export type CollectionDeal = {
