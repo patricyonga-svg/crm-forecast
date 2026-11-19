@@ -13,6 +13,9 @@ test("leads d'un SDR sur une période", () => {
   ];
   assert.deepEqual(leadCounts(deals, 7, "2026-11-01", "2026-11-30"), { newLeads: 2, qualified: 2 });
   assert.deepEqual(leadCounts(deals, 7, "2026-10-01", "2026-10-31"), { newLeads: 1, qualified: 0 });
+  // Entreprise sans contact : le lead reste un nouveau lead mais n'est pas compté comme qualifié.
+  const noContact = deals.map((d, i) => (i === 0 ? { ...d, has_contact: false } : d));
+  assert.deepEqual(leadCounts(noContact, 7, "2026-11-01", "2026-11-30"), { newLeads: 2, qualified: 1 });
 });
 
 test("objectifs SDR : somme des mois, saisie et répartition", () => {

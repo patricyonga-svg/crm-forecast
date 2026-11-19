@@ -21,13 +21,15 @@ export async function loadSdrLeads(from: string, to: string) {
   const [{ data: deals }, { data: objectives }] = await Promise.all([
     supabase
       .from("deals")
-      .select("sdr_id, country_code, created_at, qualified_at")
+      // Nombre de contacts de l'entreprise : un lead sans contact (donc sans décideur) n'est pas compté comme qualifié.
+      .select("sdr_id, country_code, created_at, qualified_at, clients(contacts(count))")
       .not("sdr_id", "is", null)
       .or(`created_at.gte.${from},qualified_at.gte.${from}`)
-      .returns<SdrDeal[]>(),
+      .returns<(Omit<SdrDeal, "has_contact"> & { clients: { contacts: { count: number }[] } | null })[]>(),
     supabase.from("sdr_objectives").select("sales_rep_id, month, new_leads, qualified_leads").gte("month", from).lte("month", to).returns<SdrObjective[]>(),
   ]);
-  return { profile, refs, deals: deals ?? [], objectives: objectives ?? [] };
+  const rows: SdrDeal[] = (deals ?? []).map(({ clients, ...d }) => ({ ...d, has_contact: clients ? (clients.contacts?.[0]?.count ?? 0) > 0 : undefined }));
+  return { profile, refs, deals: rows, objectives: objectives ?? [] };
 }
 
 export async function loadAppointments(from: string) {
