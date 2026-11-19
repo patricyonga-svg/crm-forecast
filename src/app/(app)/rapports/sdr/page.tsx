@@ -172,7 +172,8 @@ export default async function SdrAchievementsPage({ searchParams }: { searchPara
       </div>
       <p className="text-xs text-zinc-500">
         Nouveau lead = affaire créée avec ce SDR (champ « SDR » de l&apos;affaire), comptée à sa date de création · lead qualifié = affaire de ce SDR passée
-        de la prospection à « Opportunité » ou au-delà, comptée à la date du passage · pays du SDR · pastille verte à partir du prorata de la période écoulée
+        de la prospection à « Opportunité » ou au-delà, comptée à la date du passage (ou à la date où le SDR a été ajouté sur une affaire déjà
+        en Opportunité ou au-delà) · pays du SDR · pastille verte à partir du prorata de la période écoulée
         (trait orange), ambre à partir de la moitié, rouge en dessous.
       </p>
     </div>
