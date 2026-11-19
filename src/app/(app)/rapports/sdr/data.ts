@@ -18,16 +18,18 @@ export function byCountry<T extends { country_code: string | null }>(countries: 
 export async function loadSdrLeads(from: string, to: string) {
   const { supabase, profile } = await getSession();
   const refs = await getReferences(supabase);
-  const [{ data: deals }, { data: objectives }] = await Promise.all([
+  const [{ data: deals, error }, { data: objectives }] = await Promise.all([
     supabase
       .from("deals")
       // Nombre de contacts de l'entreprise : un lead sans contact (donc sans décideur) n'est pas compté comme qualifié.
-      .select("sdr_id, country_code, created_at, qualified_at, clients(contacts(count))")
+      .select("sdr_id, country_code, created_at, qualified_at, clients(contacts!contacts_client_id_fkey(count))")
       .not("sdr_id", "is", null)
       .or(`created_at.gte.${from},qualified_at.gte.${from}`)
       .returns<(Omit<SdrDeal, "has_contact"> & { clients: { contacts: { count: number }[] } | null })[]>(),
     supabase.from("sdr_objectives").select("sales_rep_id, month, new_leads, qualified_leads").gte("month", from).lte("month", to).returns<SdrObjective[]>(),
   ]);
+  // Une requête en erreur ne doit pas afficher des réalisations à 0 sans prévenir.
+  if (error) throw new Error(`Chargement des leads SDR impossible : ${error.message}`);
   const rows: SdrDeal[] = (deals ?? []).map(({ clients, ...d }) => ({ ...d, has_contact: clients ? (clients.contacts?.[0]?.count ?? 0) > 0 : undefined }));
   return { profile, refs, deals: rows, objectives: objectives ?? [] };
 }
