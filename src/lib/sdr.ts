@@ -1,6 +1,6 @@
 // Calculs du rapport SDR : nouveaux leads, leads qualifiés et rendez-vous, par période.
 
-export type SdrDeal = { sdr_id: number | null; country_code: string; created_at: string; qualified_at: string | null };
+export type SdrDeal = { sdr_id: number | null; country_code: string; created_at: string; qualified_at: string | null; has_contact?: boolean };
 export type SdrObjective = { sales_rep_id: number; month: string; new_leads: number; qualified_leads: number };
 export type SdrAppointment = {
   sales_rep_id: number;
@@ -16,12 +16,15 @@ export const day = (ts: string | null | undefined) => (ts ? ts.slice(0, 10) : nu
 
 const within = (d: string | null, from: string, to: string) => !!d && d >= from && d <= to;
 
-/** Nouveaux leads = affaires créées avec ce SDR ; leads qualifiés = affaires de ce SDR passées en Opportunité ou au-delà. */
+/**
+ * Nouveaux leads = affaires créées avec ce SDR ; leads qualifiés = affaires de ce SDR passées en Opportunité ou au-delà,
+ * dont l'entreprise a au moins un contact (has_contact === false = exclue ; absent = pas de contrôle).
+ */
 export function leadCounts(deals: SdrDeal[], repId: number, from: string, to: string) {
   const mine = deals.filter((d) => d.sdr_id === repId);
   return {
     newLeads: mine.filter((d) => within(day(d.created_at), from, to)).length,
-    qualified: mine.filter((d) => within(day(d.qualified_at), from, to)).length,
+    qualified: mine.filter((d) => d.has_contact !== false && within(day(d.qualified_at), from, to)).length,
   };
 }
 
