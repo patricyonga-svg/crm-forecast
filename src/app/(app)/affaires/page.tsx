@@ -14,7 +14,7 @@ type Row = Deal & {
 };
 
 type Param = string | string[] | undefined;
-type Search = { q?: string; pays?: Param; etape?: Param; porteur?: Param; lob?: Param; trimestre?: Param; vente?: Param; premium?: Param; vue?: string; mode?: string };
+type Search = { q?: string; pays?: Param; etape?: Param; porteur?: Param; sdr?: Param; lob?: Param; trimestre?: Param; vente?: Param; premium?: Param; vue?: string; mode?: string };
 
 /** Valeurs d'un filtre à choix multiple (?pays=SN&pays=CI), sans doublon ni valeur vide. */
 function list(p: Param): string[] {
@@ -39,6 +39,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
     etape: list(params.etape),
     lob: list(params.lob),
     porteur: list(params.porteur),
+    sdr: list(params.sdr),
     trimestre: list(params.trimestre),
     vente: list(params.vente),
   };
@@ -51,6 +52,12 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
     const ids = f.porteur.filter((p) => p !== "aucun").map(Number).filter(Number.isFinite);
     const parts = [...(ids.length ? [`sales_rep_id.in.(${ids.join(",")})`] : []), ...(f.porteur.includes("aucun") ? ["sales_rep_id.is.null"] : [])];
     query = query.or(parts.length ? parts.join(",") : "sales_rep_id.eq.-1");
+  }
+  if (f.sdr.length) {
+    // Affaires apportées par un SDR donné (champ « SDR » de la fiche affaire).
+    const ids = f.sdr.filter((p) => p !== "aucun").map(Number).filter(Number.isFinite);
+    const parts = [...(ids.length ? [`sdr_id.in.(${ids.join(",")})`] : []), ...(f.sdr.includes("aucun") ? ["sdr_id.is.null"] : [])];
+    query = query.or(parts.length ? parts.join(",") : "sdr_id.eq.-1");
   }
   if (f.trimestre.length) {
     const parts = f.trimestre.flatMap((t) => {
@@ -125,6 +132,14 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
             name: "porteur",
             label: "Porteur",
             options: [{ value: "aucun", label: "Sans porteur" }, ...refs.reps.map((r) => ({ value: String(r.id), label: r.display_name }))],
+          },
+          {
+            name: "sdr",
+            label: "SDR",
+            options: [
+              { value: "aucun", label: "Sans SDR" },
+              ...refs.reps.filter((r) => r.is_sdr).map((r) => ({ value: String(r.id), label: `SDR : ${r.display_name}` })),
+            ],
           },
           {
             name: "trimestre",
