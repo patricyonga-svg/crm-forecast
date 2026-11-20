@@ -28,6 +28,7 @@ export const REPORT_GROUPS: ReportGroup[] = [
     reports: [
       { href: "/rapports/stagnation", label: "Stagnation" },
       { href: "/rapports/encaissements", label: "Encaissements" },
+      { href: "/rapports/encaissements/a-venir", label: "Encaissements à venir" },
     ],
   },
   {
