@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getReferences, getSession } from "@/lib/session";
 import { currentQuarter, formatDate, LEAD_STAGES, quarterRange, STAGES, type Stage } from "@/lib/domain";
-import { formatM, inQuarter, previousQuarter, realised, type ReportDeal } from "@/lib/reports";
+import { closeDate, closingBetween, formatM, inQuarter, previousQuarter, realised, type ReportDeal } from "@/lib/reports";
 import { account, byPriority, HEALTH_LABEL, isOpen, type Account, type Health, type PremiumDeal } from "@/lib/premium";
 import { Avatar, Kpi } from "@/components/charts";
 import { StageBadge } from "@/components/StageBadge";
@@ -41,8 +41,7 @@ export default async function PremiumPage({ searchParams }: { searchParams: Prom
     supabase
       .from("deal_amounts")
       .select("country_code, sales_rep_id, stage, expected_close_date, quote_amount, forecast_amount, invoiced_amount")
-      .gte("expected_close_date", quarterRange(previousQuarter(trimestre)).from)
-      .lte("expected_close_date", to)
+      .or(closingBetween(quarterRange(previousQuarter(trimestre)).from, to))
       .returns<ReportDeal[]>(),
   ]);
 
@@ -85,7 +84,7 @@ export default async function PremiumPage({ searchParams }: { searchParams: Prom
     forecast: sum(premiumScoped, (d) => d.forecast_amount),
     done: realised(deals, from, to),
     collected: sum(
-      deals.filter((d) => d.expected_close_date && d.expected_close_date >= from && d.expected_close_date <= to),
+      deals.filter((d) => closeDate(d) >= from && closeDate(d) <= to),
       (d) => d.collected_amount,
     ),
     teamPipe: sum(scope(team), (d) => d.quote_amount),

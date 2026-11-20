@@ -138,6 +138,8 @@ export const isSaleChannel = (v: unknown): v is SaleChannel => SALE_CHANNELS.som
 
 /** Étapes pour lesquelles un devis joint est obligatoire au moment d'y passer. */
 export const QUOTE_REQUIRED_STAGES: Stage[] = ["forecast", "won_pending", "won"];
+/** À partir d'Opportunité, la date de closing est obligatoire : sans elle, l'affaire n'entre dans aucun trimestre des rapports. */
+export const CLOSE_DATE_REQUIRED_STAGES: Stage[] = ["opportunite", "forecast", "won_pending", "won"];
 
 export const addDays = (iso: string, days: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10);
 

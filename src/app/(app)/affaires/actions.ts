@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { type Contact, contactName, formatDate, formatDateTime, formatMoney, isCardsStatus, isSaleChannel, isStage, QUOTE_REQUIRED_STAGES, SALE_CHANNELS, STAGE_LABEL, dealTitle, type Stage } from "@/lib/domain";
+import { CLOSE_DATE_REQUIRED_STAGES, type Contact, contactName, formatDate, formatDateTime, formatMoney, isCardsStatus, isSaleChannel, isStage, QUOTE_REQUIRED_STAGES, SALE_CHANNELS, STAGE_LABEL, dealTitle, type Stage } from "@/lib/domain";
 import { calendarInvite, emailConfigured, escapeHtml, googleCalendarLink, sendMail } from "@/lib/email";
 import { directMessages, meetingMessage, postSlack, slackConfigured, slackUserId, winMessage, winsChannels } from "@/lib/slack";
 
@@ -116,11 +116,17 @@ async function logNextAction(supabase: Supabase, dealId: string, action: string 
 
 const CARDS_REQUIRED = "Pour passer en « Won Pending », indiquez si les cartes sont livrées, non livrées ou désactivées.";
 const PAYMENT_DATE_REQUIRED = "Pour passer en « Won Pending », la date prévisionnelle d'encaissement est obligatoire.";
+const closeDateRequired = (stage: Stage) => `Pour passer en « ${STAGE_LABEL[stage]} », la date de closing est obligatoire.`;
+const CLOSE_DATE_MISSING = "Attention : la date de closing est obligatoire à partir de l'étape « Opportunité », sinon l'affaire n'apparaît dans aucun trimestre des rapports.";
 const quoteRequired = (stage: Stage) => `Pour passer en « ${STAGE_LABEL[stage]} », joignez le devis.`;
 
 /** Ce qui manque pour passer à une étape de vente : devis, cartes, date prévisionnelle d'encaissement. */
-function salesStageProblem(stage: Stage, d: { quote_file_path?: string | null; cards_status?: string | null; expected_payment_date?: string | null }): string | null {
+function salesStageProblem(
+  stage: Stage,
+  d: { quote_file_path?: string | null; cards_status?: string | null; expected_payment_date?: string | null; expected_close_date?: string | null },
+): string | null {
   const missing: string[] = [];
+  if (CLOSE_DATE_REQUIRED_STAGES.includes(stage) && !d.expected_close_date) missing.push(closeDateRequired(stage));
   if (QUOTE_REQUIRED_STAGES.includes(stage) && !d.quote_file_path) missing.push(quoteRequired(stage));
   if (stage === "won_pending" && !d.cards_status) missing.push(CARDS_REQUIRED);
   if (stage === "won_pending" && !d.expected_payment_date) missing.push(PAYMENT_DATE_REQUIRED);
@@ -277,19 +283,21 @@ export async function createDeal(_prev: FormState, form: FormData): Promise<Form
   redirect(target);
 }
 
-type SalesInput = { quote_file_path?: string | null; cards_status?: string | null; expected_payment_date?: string | null };
+type SalesInput = { quote_file_path?: string | null; cards_status?: string | null; expected_payment_date?: string | null; expected_close_date?: string | null };
 
 async function stageProblem(supabase: Supabase, dealId: string, stage: Stage, input: SalesInput = {}): Promise<string | null> {
-  if (QUOTE_REQUIRED_STAGES.includes(stage)) {
+  if (CLOSE_DATE_REQUIRED_STAGES.includes(stage)) {
     const { data } = await supabase
       .from("deals")
-      .select("quote_file_path, cards_status, expected_payment_date")
+      .select("quote_file_path, cards_status, expected_payment_date, expected_close_date")
       .eq("id", dealId)
-      .single<{ quote_file_path: string | null; cards_status: string | null; expected_payment_date: string | null }>();
+      .single<{ quote_file_path: string | null; cards_status: string | null; expected_payment_date: string | null; expected_close_date: string | null }>();
     return salesStageProblem(stage, {
       quote_file_path: input.quote_file_path || data?.quote_file_path,
       cards_status: input.cards_status || data?.cards_status,
       expected_payment_date: input.expected_payment_date || data?.expected_payment_date,
+      // Depuis la fiche, le champ date est toujours envoyé : une date effacée compte comme absente.
+      expected_close_date: "expected_close_date" in input ? input.expected_close_date : data?.expected_close_date,
     });
   }
   if (stage !== "a_contacter") return null;
@@ -338,6 +346,8 @@ export async function updateDeal(id: string, _prev: FormState, form: FormData): 
     if (!target && patch.stage === "won_pending" && changing && !fields.invoice_file_path && !current?.invoice_file_path) {
       notice = INVOICE_REMINDER;
     }
+    // Affaire déjà à une étape avancée sans date de closing (anciennes saisies) : on enregistre, mais on prévient.
+    if (!target && patch.stage && CLOSE_DATE_REQUIRED_STAGES.includes(patch.stage) && !fields.expected_close_date) notice = CLOSE_DATE_MISSING;
   } catch (e) {
     return fail(e);
   }
