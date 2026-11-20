@@ -1,5 +1,5 @@
 // Calculs des rapports : réalisé vs objectif, couverture forecast / pipe, entonnoir.
-import { LEAD_STAGES, quarterRange, type Stage } from "./domain";
+import { LEAD_STAGES, currentQuarter, quarterRange, type Stage } from "./domain";
 
 export type ReportDeal = {
   country_code: string;
@@ -31,22 +31,41 @@ export function previousQuarter(value: string): string {
 
 const OPEN_STAGES: Stage[] = ["opportunite", "a_relancer", "forecast"];
 
+/** Date de closing retenue dans les rapports : une affaire sans date est placée au dernier jour du trimestre en cours. */
+export function closeDate(d: Pick<ReportDeal, "expected_close_date">, today = new Date()): string {
+  return d.expected_close_date ?? quarterRange(currentQuarter(today)).to;
+}
+
+/**
+ * Filtre « date de closing dans [from, to] ». Les affaires sans date sont placées au dernier jour du trimestre
+ * en cours (voir closeDate) : on les ajoute quand ce jour tombe dans la période.
+ */
+export function closingBetween(from: string, to: string, today = new Date()) {
+  const end = quarterRange(currentQuarter(today)).to;
+  const dated = `and(expected_close_date.gte.${from},expected_close_date.lte.${to})`;
+  return end >= from && end <= to ? `${dated},expected_close_date.is.null` : dated;
+}
+
 /**
  * Affaires prises en compte pour un trimestre : celles datées dans le trimestre,
  * plus les affaires encore ouvertes (Opportunité, Forecast) datées du trimestre précédent, en retard.
  */
-export function inQuarter(d: ReportDeal, trimestre: string): boolean {
-  const date = d.expected_close_date;
-  if (!date) return false;
+export function inQuarter(d: ReportDeal, trimestre: string, today = new Date()): boolean {
+  const date = closeDate(d, today);
   const { from, to } = quarterRange(trimestre);
   if (date >= from && date <= to) return true;
   const late = quarterRange(previousQuarter(trimestre));
   return OPEN_STAGES.includes(d.stage) && date >= late.from && date < from;
 }
 
-/** Réalisé = montant facturé (Won Pending + Won) des affaires dont la date de closing tombe dans [from, to]. */
-export function realised(deals: ReportDeal[], from: string, to: string): number {
-  return deals.filter((d) => d.expected_close_date && d.expected_close_date >= from && d.expected_close_date <= to).reduce((s, d) => s + Number(d.invoiced_amount), 0);
+/** Réalisé = montant facturé (Won Pending + Won) des affaires dont la date de closing (sinon fin du trimestre en cours) tombe dans [from, to]. */
+export function realised(deals: ReportDeal[], from: string, to: string, today = new Date()): number {
+  return deals
+    .filter((d) => {
+      const date = closeDate(d, today);
+      return date >= from && date <= to;
+    })
+    .reduce((s, d) => s + Number(d.invoiced_amount), 0);
 }
 
 export function monthEnd(month: string): string {

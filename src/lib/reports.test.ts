@@ -28,7 +28,10 @@ test("affaires d'un trimestre : retards ouverts inclus, affaires gagnées du tri
   assert.equal(inQuarter(deal("forecast", "2026-08-10", 1), "2026-T4"), true);
   assert.equal(inQuarter(deal("won", "2026-08-10", 1), "2026-T4"), false);
   assert.equal(inQuarter(deal("opportunite", "2026-04-10", 1), "2026-T4"), false);
-  assert.equal(inQuarter(deal("opportunite", null, 1), "2026-T4"), false);
+  // Sans date de closing : dernier jour du trimestre en cours.
+  assert.equal(inQuarter(deal("opportunite", null, 1), "2026-T4", new Date("2026-11-20")), true);
+  assert.equal(inQuarter(deal("opportunite", null, 1), "2026-T3", new Date("2026-11-20")), false);
+  assert.equal(inQuarter(deal("won", null, 1), "2027-T1", new Date("2026-11-20")), false);
 });
 
 test("réalisé, couverture et entonnoir", () => {

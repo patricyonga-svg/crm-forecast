@@ -1,6 +1,6 @@
 import { getReferences, getSession } from "@/lib/session";
 import { currentQuarter, quarterRange } from "@/lib/domain";
-import { previousQuarter, type ReportDeal, type RepObjective, type Settings } from "@/lib/reports";
+import { closingBetween, previousQuarter, type ReportDeal, type RepObjective, type Settings } from "@/lib/reports";
 
 const DEAL_COLUMNS = "country_code, sales_rep_id, stage, expected_close_date, quote_amount, forecast_amount, invoiced_amount";
 
@@ -13,8 +13,7 @@ export async function loadQuarter(trimestre = currentQuarter()) {
     supabase
       .from("deal_amounts")
       .select(DEAL_COLUMNS)
-      .gte("expected_close_date", quarterRange(previousQuarter(trimestre)).from)
-      .lte("expected_close_date", to)
+      .or(closingBetween(quarterRange(previousQuarter(trimestre)).from, to))
       .returns<ReportDeal[]>(),
     supabase.from("rep_objectives").select("sales_rep_id, month, amount").gte("month", from).lte("month", to).returns<RepObjective[]>(),
     supabase.from("pipeline_settings").select("forecast_multiple, pipe_multiple").single<Settings>(),
@@ -36,11 +35,13 @@ export async function loadQuarter(trimestre = currentQuarter()) {
 export async function loadPeriod(from: string, to: string) {
   const { supabase, profile } = await getSession();
   const refs = await getReferences(supabase);
+  const filter = closingBetween(from, to);
   const [{ data: deals }, { count: undated }] = await Promise.all([
-    supabase.from("deal_amounts").select(DEAL_COLUMNS).gte("expected_close_date", from).lte("expected_close_date", to).returns<ReportDeal[]>(),
+    supabase.from("deal_amounts").select(DEAL_COLUMNS).or(filter).returns<ReportDeal[]>(),
     supabase.from("deals").select("id", { count: "exact", head: true }).is("expected_close_date", null),
   ]);
-  return { profile, refs, deals: deals ?? [], undated: undated ?? 0 };
+  // Les affaires sans date ne sont « hors période » que si la fin du trimestre en cours n'est pas dans la période.
+  return { profile, refs, deals: deals ?? [], undated: filter.includes("is.null") ? 0 : (undated ?? 0) };
 }
 
 const MONTH = new Intl.DateTimeFormat("fr-FR", { month: "long" });
