@@ -221,7 +221,7 @@ export default async function DealPage({ params, searchParams }: { params: Promi
                   </button>
                 </div>
               )}
-              <DealFields refs={refs} deal={{ ...deal, name: deal.name ?? client.name }} country={deal.country_code} />
+              <DealFields refs={refs} deal={{ ...deal, name: deal.name ?? client.name }} country={deal.country_code} role={profile?.role} />
               <p className="text-xs text-zinc-500">
                 Les étapes « Prise de rendez-vous » et « CR de rendez-vous » ouvrent leur formulaire ci-dessous.
               </p>
