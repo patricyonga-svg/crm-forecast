@@ -53,7 +53,7 @@ export default async function CollectionsPage({ searchParams }: { searchParams: 
   return (
     <div className="space-y-6">
       <div>
-        <p className="eyebrow">Encaissements à venir</p>
+        <p className="eyebrow">Encaissements par mois</p>
         <h1 className="text-2xl font-extrabold">
           {formatM(totalRest)} XOF facturés restent à encaisser, dont {formatM(lateRest)} en retard
         </h1>
