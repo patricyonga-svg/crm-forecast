@@ -23,7 +23,7 @@ function list(p: Param): string[] {
 
 export default async function DealsPage({ searchParams }: { searchParams: Promise<Search> }) {
   const params = await searchParams;
-  const { supabase, user } = await getSession();
+  const { supabase, user, profile } = await getSession();
   const refs = await getReferences(supabase);
   const today = new Date().toISOString().slice(0, 10);
 
@@ -219,6 +219,7 @@ export default async function DealsPage({ searchParams }: { searchParams: Promis
         <PipelineBoard
           key={JSON.stringify(params)}
           stages={f.etape.filter(isStage)}
+          role={profile?.role}
           cards={deals.map((d) => ({
             id: d.id,
             title: dealTitle(d, d.clients.name),

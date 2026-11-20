@@ -1,4 +1,4 @@
-import { CARDS_STATUS, SALE_CHANNELS, STAGES, type Deal } from "@/lib/domain";
+import { canChangeStage, CARDS_STATUS, LOCKED_STAGES, SALE_CHANNELS, STAGES, type Deal } from "@/lib/domain";
 import { QuoteUpload } from "./QuoteUpload";
 
 type Refs = {
@@ -13,13 +13,17 @@ export function DealFields({
   country,
   showStage = true,
   commentRequired = false,
+  role,
 }: {
   refs: Refs;
   deal?: Partial<Deal>;
   country?: string;
   showStage?: boolean;
   commentRequired?: boolean;
+  /** Rôle de l'utilisateur : hors administrateur, une affaire en Won Pending / Won ne revient pas en arrière. */
+  role?: string | null;
 }) {
+  const locked = !!deal?.stage && LOCKED_STAGES.includes(deal.stage) && role !== "admin";
   const reps = country ? refs.reps.filter((r) => !r.country_code || r.country_code === country) : refs.reps;
   // SDR proposés : les commerciaux SDR du pays, plus le SDR actuel de l'affaire s'il ne l'est plus.
   const sdrs = refs.reps.filter((r) => (r.is_sdr && r.active !== false && reps.includes(r)) || r.id === deal?.sdr_id);
@@ -34,11 +38,12 @@ export function DealFields({
           <span className="text-zinc-600">Étape</span>
           <select name="stage" defaultValue={deal?.stage ?? "opportunite"} className="input">
             {STAGES.map((s) => (
-              <option key={s.value} value={s.value} title={s.help}>
+              <option key={s.value} value={s.value} title={s.help} disabled={!canChangeStage(role, deal?.stage, s.value)}>
                 {s.label} : {s.help}
               </option>
             ))}
           </select>
+          {locked && <span className="text-xs text-zinc-500">🔒 Affaire facturée : seul un administrateur peut la ramener à une étape antérieure.</span>}
         </label>
       )}
       <label className="space-y-1 text-sm">

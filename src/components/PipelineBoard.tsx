@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { CARDS_STATUS, formatDate, LEAD_STAGES, STAGE_ACCENT, STAGES, type CardsStatus, type Contact, type Stage } from "@/lib/domain";
+import { canChangeStage, CARDS_STATUS, formatDate, LEAD_STAGES, LOCKED_STAGE_MESSAGE, STAGE_ACCENT, STAGES, type CardsStatus, type Contact, type Stage } from "@/lib/domain";
 import { formatM, initials } from "@/lib/reports";
 import { getBookingData, moveDeal, type MoveExtra } from "@/app/(app)/affaires/actions";
 import { BookingForm } from "./BookingForm";
@@ -43,7 +43,7 @@ const DAY = 86_400_000;
 const lateDays = (close: string) => Math.max(1, Math.round((Date.now() - new Date(`${close}T00:00:00`).getTime()) / DAY));
 
 /** Pipe commercial en vignettes : une colonne par étape, glisser-déposer pour changer d'étape. */
-export function PipelineBoard({ cards: initial, stages }: { cards: BoardCard[]; stages?: Stage[] }) {
+export function PipelineBoard({ cards: initial, stages, role }: { cards: BoardCard[]; stages?: Stage[]; role?: string | null }) {
   const router = useRouter();
   const [cards, setCards] = useState(initial);
   const [dragging, setDragging] = useState<string | null>(null);
@@ -99,6 +99,10 @@ export function PipelineBoard({ cards: initial, stages }: { cards: BoardCard[]; 
     const card = cards.find((c) => c.id === dragging);
     setDragging(null);
     if (!card || card.stage === stage) return;
+    if (!canChangeStage(role, card.stage, stage)) {
+      setMessage({ text: `« ${card.title} » : ${LOCKED_STAGE_MESSAGE}`, href: `/affaires/${card.id}`, warn: true });
+      return;
+    }
     if (stage === "prise_rdv") {
       // Le formulaire de rendez-vous s'ouvre ici même ; l'affaire change d'étape une fois le rendez-vous réservé.
       setDialog({ kind: "rdv", card, data: null });

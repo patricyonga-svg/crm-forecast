@@ -256,3 +256,16 @@ export const dealTitle = (d: { name?: string | null }, clientName?: string | nul
 
 /** Rôles qui peuvent marquer un client Premium (contrôlé aussi en base, migration 0009). */
 export const canTagPremium = (role: string | null | undefined) => role === "admin" || role === "manager";
+
+/** Étapes verrouillées : une affaire facturée ne peut revenir en arrière que par un administrateur. */
+export const LOCKED_STAGES: Stage[] = ["won_pending", "won"];
+
+/** Vrai si passer de `from` à `to` fait sortir l'affaire de Won Pending / Won (seul Won Pending → Won reste libre). */
+export const isLockedStageChange = (from: string | null | undefined, to: string) =>
+  !!from && from !== to && LOCKED_STAGES.includes(from as Stage) && !(from === "won_pending" && to === "won");
+
+export const canChangeStage = (role: string | null | undefined, from: string | null | undefined, to: string) =>
+  role === "admin" || !isLockedStageChange(from, to);
+
+export const LOCKED_STAGE_MESSAGE =
+  "Une affaire en « Won Pending » ou « Won » ne peut revenir à une étape antérieure que par un administrateur.";

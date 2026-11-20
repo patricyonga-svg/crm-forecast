@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { CLOSE_DATE_REQUIRED_STAGES, type Contact, contactName, formatDate, formatDateTime, formatMoney, isCardsStatus, isSaleChannel, isStage, QUOTE_REQUIRED_STAGES, SALE_CHANNELS, STAGE_LABEL, dealTitle, type Stage } from "@/lib/domain";
+import { canChangeStage, CLOSE_DATE_REQUIRED_STAGES, type Contact, isLockedStageChange, LOCKED_STAGE_MESSAGE, contactName, formatDate, formatDateTime, formatMoney, isCardsStatus, isSaleChannel, isStage, QUOTE_REQUIRED_STAGES, SALE_CHANNELS, STAGE_LABEL, dealTitle, type Stage } from "@/lib/domain";
 import { calendarInvite, emailConfigured, escapeHtml, googleCalendarLink, sendMail } from "@/lib/email";
 import { directMessages, meetingMessage, postSlack, slackConfigured, slackUserId, winMessage, winsChannels } from "@/lib/slack";
 
@@ -285,6 +285,16 @@ export async function createDeal(_prev: FormState, form: FormData): Promise<Form
 
 type SalesInput = { quote_file_path?: string | null; cards_status?: string | null; expected_payment_date?: string | null; expected_close_date?: string | null };
 
+/** Rôle de l'utilisateur connecté (admin, manager, commercial, sdr). */
+async function myRole(supabase: Supabase): Promise<string | null> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase.from("profiles").select("role").eq("id", user.id).single<{ role: string }>();
+  return data?.role ?? null;
+}
+
 async function stageProblem(supabase: Supabase, dealId: string, stage: Stage, input: SalesInput = {}): Promise<string | null> {
   if (CLOSE_DATE_REQUIRED_STAGES.includes(stage)) {
     const { data } = await supabase
@@ -320,6 +330,12 @@ export async function updateDeal(id: string, _prev: FormState, form: FormData): 
       .single<{ stage: Stage; next_action: string | null; next_action_date: string | null; invoice_file_path: string | null }>();
     const changing = current && current.stage !== fields.stage;
     let patch: Partial<typeof fields> = fields;
+    if (changing && isLockedStageChange(current.stage, fields.stage) && !canChangeStage(await myRole(supabase), current.stage, fields.stage)) {
+      // Won Pending / Won : retour en arrière réservé aux administrateurs. Le reste est enregistré.
+      const { data: saved } = await supabase.from("deals").update({ ...fields, stage: current.stage }).eq("id", id).select("id");
+      revalidatePath(`/affaires/${id}`);
+      return { error: `${LOCKED_STAGE_MESSAGE}${saved?.length ? " Les autres modifications sont enregistrées." : ""}` };
+    }
     if (changing && FORM_FOR_STAGE[fields.stage]) {
       // Le passage à cette étape se fait par son formulaire (rendez-vous ou compte rendu).
       patch = { ...fields, stage: current.stage };
@@ -360,6 +376,9 @@ export type MoveExtra = { cards?: string; paymentDate?: string; quotePath?: stri
 /** Glisser-déposer dans le pipe. Renvoie l'adresse du formulaire à ouvrir pour les étapes qui en ont un. */
 export async function moveDeal(id: string, stage: string, extra: MoveExtra = {}): Promise<{ error?: string; redirectTo?: string; notice?: string }> {
   if (!isStage(stage)) return { error: "Étape invalide." };
+  const supabase = await createClient();
+  const { data: before } = await supabase.from("deals").select("stage").eq("id", id).single<{ stage: Stage }>();
+  if (isLockedStageChange(before?.stage, stage) && !canChangeStage(await myRole(supabase), before?.stage, stage)) return { error: LOCKED_STAGE_MESSAGE };
   if (FORM_FOR_STAGE[stage]) return { redirectTo: `/affaires/${id}?action=${FORM_FOR_STAGE[stage]}#${FORM_FOR_STAGE[stage]}` };
   const form = new FormData();
   if (extra.quotePath) form.set("quote_file_path", extra.quotePath);
@@ -373,10 +392,8 @@ export async function moveDeal(id: string, stage: string, extra: MoveExtra = {})
     ...quoteFields(form),
     ...invoiceFields(form),
   };
-  const supabase = await createClient();
   const problem = await stageProblem(supabase, id, stage, patch as SalesInput);
   if (problem) return { error: problem, redirectTo: `/affaires/${id}` };
-  const { data: before } = await supabase.from("deals").select("stage").eq("id", id).single<{ stage: Stage }>();
   const { data, error } = await supabase.from("deals").update(patch).eq("id", id).select("id");
   if (error) return { error: error.message };
   if (!data?.length) return { error: "Vous ne pouvez pas modifier cette affaire (réservé à son porteur, au manager du pays et aux administrateurs)." };
@@ -523,7 +540,8 @@ export async function bookAppointment(dealId: string, _prev: FormState, form: Fo
     }
 
     // Glissé vers « Prise de rendez-vous » depuis une autre étape que « À contacter » : on tente aussi le changement d'étape.
-    if (deal.stage !== "prise_rdv" && deal.stage !== "a_contacter" && text(form, "move") === "1") {
+    // (Pas pour une affaire en Won Pending / Won, sauf administrateur.)
+    if (deal.stage !== "prise_rdv" && deal.stage !== "a_contacter" && text(form, "move") === "1" && canChangeStage(booker?.role, deal.stage, "prise_rdv")) {
       await supabase.from("deals").update({ stage: "prise_rdv" }).eq("id", dealId);
     }
 
@@ -624,7 +642,7 @@ export async function reportAppointment(dealId: string, appointmentId: string | 
     const {
       data: { user },
     } = await supabase.auth.getUser();
-    const { data: deal } = await supabase.from("deals").select("client_id, sales_rep_id, country_code").eq("id", dealId).single();
+    const { data: deal } = await supabase.from("deals").select("client_id, sales_rep_id, country_code, stage").eq("id", dealId).single();
     if (!deal || !user) throw new Error("Affaire introuvable.");
     const contactId = await pickContact(supabase, form, "report_contact_id", "cr_", deal.client_id, dealId);
     if (!contactId) throw new Error("Indiquez avec qui le rendez-vous a eu lieu.");
@@ -674,7 +692,9 @@ export async function reportAppointment(dealId: string, appointmentId: string | 
     });
 
     let message = "Compte rendu enregistré.";
-    if (text(form, "to_opportunity") === "1") {
+    if (text(form, "to_opportunity") === "1" && !canChangeStage(await myRole(supabase), deal.stage, "opportunite")) {
+      message += ` ${LOCKED_STAGE_MESSAGE}`;
+    } else if (text(form, "to_opportunity") === "1") {
       const { data: moved } = await supabase.from("deals").update({ stage: "opportunite" }).eq("id", dealId).select("id");
       message += moved?.length ? ` L'affaire est passée en ${STAGE_LABEL.opportunite}.` : " Seul le porteur de l'affaire ou un manager peut la passer en Opportunité.";
     }
