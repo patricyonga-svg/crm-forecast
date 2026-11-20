@@ -217,32 +217,50 @@ export async function createDeal(_prev: FormState, form: FormData): Promise<Form
   try {
     const supabase = await createClient();
     const fields = dealFields(form);
-    const country = text(form, "country_code");
-    const clientName = text(form, "client_name");
-    if (!country || !clientName) throw new Error("L'entreprise et le pays sont obligatoires.");
     const sector = text(form, "sector");
     const contact = contactFields(form, "contact_");
+    const contactId = text(form, "contact_id");
+    const existingContactId = contactId && contactId !== "nouveau" ? contactId : null;
     const salesProblem = salesStageProblem(fields.stage, fields);
     if (salesProblem) throw new Error(salesProblem);
-    // Réutilise l'entreprise existante du même pays plutôt que de créer un doublon, et complète ce qui manque.
-    const { data: existing } = await supabase
-      .from("clients")
-      .select("id, sector, headcount")
-      .eq("country_code", country)
-      .ilike("name", clientName)
-      .order("created_at")
-      .limit(1);
-    let clientId = existing?.[0]?.id as string | undefined;
-    if (fields.stage === "a_contacter") {
-      if (!sector && !existing?.[0]?.sector) throw new Error("À l'étape « À contacter », le secteur de l'entreprise est obligatoire.");
-      if (!fields.comment) throw new Error("À l'étape « À contacter », le commentaire est obligatoire.");
-      if (!contact.last_name) throw new Error("À l'étape « À contacter », il faut au moins un contact (nom obligatoire).");
-    }
     const headcount = int(form, "headcount");
-    if (clientId) {
+
+    // L'entreprise est soit choisie dans la liste (client_id), soit saisie pour être créée.
+    let client: { id: string; country_code: string; sector: string | null; headcount: number | null } | null = null;
+    const chosenId = text(form, "client_id");
+    if (chosenId) {
+      const { data } = await supabase.from("clients").select("id, country_code, sector, headcount").eq("id", chosenId).maybeSingle();
+      if (!data) throw new Error("L'entreprise choisie est introuvable. Recherchez-la à nouveau.");
+      client = data;
+    }
+    const clientName = text(form, "client_name");
+    let country = client?.country_code ?? null;
+    if (!client) {
+      country = text(form, "country_code");
+      if (!clientName) throw new Error("Choisissez une entreprise existante ou créez-en une.");
+      if (!country) throw new Error("Le pays de l'entreprise est obligatoire.");
+      // Réutilise l'entreprise existante du même pays plutôt que de créer un doublon.
+      const { data: existing } = await supabase
+        .from("clients")
+        .select("id, country_code, sector, headcount")
+        .eq("country_code", country)
+        .ilike("name", clientName)
+        .order("created_at")
+        .limit(1);
+      client = existing?.[0] ?? null;
+    }
+    if (fields.stage === "a_contacter") {
+      if (!sector && !client?.sector) throw new Error("À l'étape « À contacter », le secteur de l'entreprise est obligatoire.");
+      if (!fields.comment) throw new Error("À l'étape « À contacter », le commentaire est obligatoire.");
+      if (!contact.last_name && !existingContactId) throw new Error("À l'étape « À contacter », il faut au moins un contact (nom obligatoire).");
+    }
+    let clientId: string;
+    if (client) {
+      clientId = client.id;
+      // Complète ce qui manque sur la fiche entreprise, sans écraser ce qui est déjà renseigné.
       const patch: Record<string, unknown> = {};
-      if (sector && !existing![0].sector) patch.sector = sector;
-      if (headcount !== null && existing![0].headcount === null) patch.headcount = headcount;
+      if (sector && !client.sector) patch.sector = sector;
+      if (headcount !== null && client.headcount === null) patch.headcount = headcount;
       if (Object.keys(patch).length) await supabase.from("clients").update(patch).eq("id", clientId);
     } else {
       const { data, error } = await supabase
@@ -252,6 +270,10 @@ export async function createDeal(_prev: FormState, form: FormData): Promise<Form
         .single();
       if (error) throw new Error(error.message);
       clientId = data.id as string;
+    }
+    if (existingContactId) {
+      const { data: known } = await supabase.from("contacts").select("id").eq("id", existingContactId).eq("client_id", clientId).maybeSingle();
+      if (!known) throw new Error("Le contact choisi n'appartient pas à cette entreprise.");
     }
 
     // Filet de sécurité contre le double envoi : la même affaire créée il y a moins d'une minute est réutilisée.
@@ -271,7 +293,8 @@ export async function createDeal(_prev: FormState, form: FormData): Promise<Form
       .select("id")
       .single();
     if (error) throw new Error(error.message);
-    if (hasContactInput(contact)) await insertContact(supabase, clientId, data.id, contact);
+    if (existingContactId) await supabase.from("deal_contacts").upsert({ deal_id: data.id, contact_id: existingContactId });
+    else if (hasContactInput(contact)) await insertContact(supabase, clientId, data.id, contact);
     await logNextAction(supabase, data.id, fields.next_action, fields.next_action_date);
     await announceWin(supabase, data.id, null, fields.stage);
     revalidatePath("/affaires");
